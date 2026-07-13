@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ───────────────────────────────────────
+
+    // Cek apakah caller adalah admin (Firebase Auth + custom claim)
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ─── penilai/{token} ────────────────────────────────────────
+    // Publik boleh baca 1 dokumen jika ID-nya = token (tidak boleh list)
+    // Write hanya admin (atau Cloud Function via Admin SDK)
+    match /penilai/{token} {
+      allow get: if true;   // baca 1 dokumen berdasarkan ID: publik boleh
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ─── penilaian/{id} ─────────────────────────────────────────
+    // Seluruh operasi dari client ditolak; submit hanya via Cloud Function (Admin SDK)
+    match /penilaian/{id} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false; // Cloud Function (Admin SDK) bypass rules
+    }
+
+    // ─── kandidat/{id} ──────────────────────────────────────────
+    // Read publik (agar nama kandidat tampil di form penilai tanpa login)
+    // Write hanya admin
+    match /kandidat/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ─── Default: tolak semua koleksi lain ──────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

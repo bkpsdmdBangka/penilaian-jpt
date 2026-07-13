@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "penilaian",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kandidatId", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "penilaian",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "token", "order": "ASCENDING" },
+        { "fieldPath": "kandidatId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
