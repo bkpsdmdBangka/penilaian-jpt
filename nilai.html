@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Penilaian Makalah - JPT Pratama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Inline styles khusus CDN if any */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div id="loadingState" class="loading-center" style="min-height: 100vh">
+    <div class="spinner"></div>
+    <span>Memvalidasi token...</span>
+  </div>
+
+  <div id="invalidState" class="hidden" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="text-align: center; max-width: 400px;">
+      <div style="font-size: 4rem; margin-bottom: 1rem;">🔒</div>
+      <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--danger);">
+        Token Tidak Valid
+      </h1>
+      <p style="color: var(--text-secondary);">
+        Token yang Anda gunakan tidak ditemukan atau sudah tidak aktif.<br>
+        Hubungi panitia untuk mendapatkan link penilaian yang valid.
+      </p>
+    </div>
+  </div>
+
+  <div id="errorState" class="hidden loading-center" style="min-height: 100vh">
+    <div style="font-size: 3rem;">⚠️</div>
+    <h2>Terjadi Kesalahan</h2>
+    <p style="color: var(--text-secondary);" id="errorMessage">Gagal memuat data.</p>
+    <button class="btn btn-secondary" onclick="location.reload()">Coba Lagi</button>
+  </div>
+
+  <div id="mainContent" class="page-wrapper hidden">
+    <div class="container" style="max-width: 760px;">
+      <div style="text-align: center; margin-bottom: 2.5rem;">
+        <div style="width: 72px; height: 72px; background: var(--gradient-primary); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 1rem; box-shadow: 0 8px 32px rgba(59,130,246,0.3);">
+          📋
+        </div>
+        <h1 style="font-size: clamp(1.3rem, 3vw, 1.75rem); font-weight: 800; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 0.5rem;">
+          Form Penilaian Makalah
+        </h1>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+          Seleksi Terbuka Jabatan Pimpinan Tinggi Pratama
+        </p>
+      </div>
+
+      <div class="card mb-6" style="margin-bottom: 2rem;">
+        <div class="flex items-center gap-3">
+          <div style="width: 48px; height: 48px; background: rgba(59,130,246,0.15); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+            👨‍💼
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem;">Selamat datang, Penilai:</div>
+            <div id="namaPenilaiText" style="font-size: 1.1rem; font-weight: 700;">Memuat...</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem;">Progress</div>
+            <div id="progressText" style="font-size: 1.1rem; font-weight: 700; color: var(--primary-light);">0/0</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">selesai</div>
+          </div>
+        </div>
+        <div style="margin-top: 1rem;" id="progressContainer">
+          <div style="height: 6px; background: var(--glass-border); border-radius: 999px; overflow: hidden;">
+            <div id="progressBar" style="height: 100%; width: 0%; background: var(--gradient-primary); border-radius: 999px; transition: width 0.5s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="alertSelesai" class="alert alert-success mb-4 hidden" style="margin-bottom: 2rem;">
+        <span class="alert-icon">🎉</span>
+        <div>
+          <strong>Semua penilaian selesai!</strong>
+          <p style="font-size: 0.85rem; margin-top: 0.25rem;">
+            Terima kasih, seluruh kandidat telah Anda nilai. Hasil rekap tersedia di dashboard admin.
+          </p>
+        </div>
+      </div>
+
+      <div id="kandidatListContainer"></div>
+      
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">📭</div>
+        <h3>Tidak Ada Kandidat</h3>
+        <p>Belum ada kandidat yang ditugaskan untuk Anda nilai.</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 3rem; color: var(--text-muted); font-size: 0.8rem;">
+        Panitia Seleksi Terbuka JPT Pratama &copy; <span id="yearText"></span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db, functions } from './js/app.js';
+    import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+    import { httpsCallable } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js';
+
+    document.getElementById('yearText').textContent = new Date().getFullYear();
+
+    const INDIKATOR = [
+      'Proporsi Halaman',
+      'Penggunaan Referensi dan Peraturan Perundang-undangan',
+      'Cakupan Strategi / Rencana Aksi',
+      'Proporsi Data yang digunakan',
+      'Usul Kelayakan Rekomendasi',
+      'Penyelesaian Makalah',
+      'Kelayakan Teknis Tulisan',
+      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+    ];
+
+    const NILAI_OPTIONS = [
+      { value: 5, label: 'Sangat memadai' },
+      { value: 4, label: 'Memadai' },
+      { value: 2, label: 'Kurang memadai' },
+    ];
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    let penilaiData = null;
+    let kandidatList = [];
+    let sudahMenilai = {};
+    let localDrafts = {}; // Menyimpan jawaban sementara per kandidat
+
+    const elLoading = document.getElementById('loadingState');
+    const elInvalid = document.getElementById('invalidState');
+    const elError = document.getElementById('errorState');
+    const elMain = document.getElementById('mainContent');
+    const elKandidatList = document.getElementById('kandidatListContainer');
+
+    function extractDriveFileId(url) {
+      if (!url) return null;
+      const match = url.match(/\/file\/d\/([^/]+)/);
+      return match ? match[1] : null;
+    }
+
+    async function loadData() {
+      if (!token) {
+        showState('invalid');
+        return;
+      }
+      try {
+        const penilaiRef = doc(db, 'penilai', token);
+        const penilaiSnap = await getDoc(penilaiRef);
+
+        if (!penilaiSnap.exists()) {
+          showState('invalid');
+          return;
+        }
+
+        penilaiData = penilaiSnap.data();
+        sudahMenilai = penilaiData.sudahMenilai || {};
+
+        document.getElementById('namaPenilaiText').textContent = penilaiData.namaPenilai;
+
+        const assigned = penilaiData.assignedKandidat || [];
+        if (assigned.length === 0) {
+          kandidatList = [];
+          renderKandidatList();
+          updateProgress();
+          showState('main');
+          return;
+        }
+
+        const kandidatDocs = await Promise.all(
+          assigned.map(id => getDoc(doc(db, 'kandidat', id)))
+        );
+
+        kandidatList = kandidatDocs
+          .filter(s => s.exists())
+          .map(s => ({ id: s.id, ...s.data() }));
+
+        renderKandidatList();
+        updateProgress();
+        showState('main');
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('errorMessage').textContent = err.message || 'Gagal memuat data.';
+        showState('error');
+      }
+    }
+
+    function showState(state) {
+      elLoading.classList.add('hidden');
+      elInvalid.classList.add('hidden');
+      elError.classList.add('hidden');
+      elMain.classList.add('hidden');
+      
+      if (state === 'loading') elLoading.classList.remove('hidden');
+      else if (state === 'invalid') elInvalid.classList.remove('hidden');
+      else if (state === 'error') elError.classList.remove('hidden');
+      else if (state === 'main') {
+        elMain.classList.remove('hidden');
+        elMain.style.display = 'block'; // Ensure block
+      }
+    }
+
+    function updateProgress() {
+      const totalAssigned = kandidatList.length;
+      const totalSelesai = Object.values(sudahMenilai).filter(Boolean).length;
+      
+      const pText = document.getElementById('progressText');
+      pText.textContent = `${totalSelesai}/${totalAssigned}`;
+      
+      if (totalSelesai === totalAssigned && totalAssigned > 0) {
+        pText.style.color = '#34d399';
+        document.getElementById('alertSelesai').classList.remove('hidden');
+      }
+      
+      const pBar = document.getElementById('progressBar');
+      if (totalAssigned > 0) {
+        pBar.style.width = `${(totalSelesai / totalAssigned) * 100}%`;
+      }
+    }
+
+    window.toggleAccordion = function(id) {
+      const body = document.getElementById(`body-${id}`);
+      const icon = document.getElementById(`icon-${id}`);
+      if (body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+        icon.textContent = '▲';
+      } else {
+        body.classList.add('hidden');
+        icon.textContent = '▼';
+      }
+    };
+
+    window.updateSkor = function(kandidatId, index, value) {
+      if (!localDrafts[kandidatId]) {
+        localDrafts[kandidatId] = {};
+      }
+      localDrafts[kandidatId][`i${index}`] = parseInt(value);
+      
+      let sum = 0;
+      let count = 0;
+      for (let i = 1; i <= 8; i++) {
+        if (localDrafts[kandidatId][`i${i}`]) {
+          sum += localDrafts[kandidatId][`i${i}`];
+          count++;
+        }
+      }
+      
+      document.getElementById(`total-${kandidatId}`).textContent = sum;
+      document.getElementById(`count-${kandidatId}`).textContent = count;
+      document.getElementById(`nilai20-${kandidatId}`).textContent = sum > 0 ? ((sum / 40) * 100 * 0.2).toFixed(2) : '0.00';
+      
+      const btn = document.getElementById(`btn-submit-${kandidatId}`);
+      if (count === 8) {
+        btn.disabled = false;
+      }
+    };
+
+    window.submitPenilaian = async function(e, kandidatId, kandidatNama) {
+      e.preventDefault();
+      const draft = localDrafts[kandidatId];
+      if (!draft || Object.keys(draft).length < 8) {
+        alert('Harap isi semua 8 indikator.');
+        return;
+      }
+      
+      const btn = document.getElementById(`btn-submit-${kandidatId}`);
+      const errorDiv = document.getElementById(`error-${kandidatId}`);
+      
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner spinner-sm"></div> Menyimpan...';
+      errorDiv.classList.add('hidden');
+      
+      try {
+        const submitFn = httpsCallable(functions, 'submitPenilaian');
+        await submitFn({ token, kandidatId, indikator: draft });
+        
+        sudahMenilai[kandidatId] = true;
+        renderKandidatList();
+        updateProgress();
+        
+      } catch (err) {
+        console.error(err);
+        errorDiv.textContent = err.message || 'Terjadi kesalahan.';
+        errorDiv.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = `💾 Simpan Penilaian ${kandidatNama}`;
+      }
+    };
+
+    function renderKandidatList() {
+      if (kandidatList.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        elKandidatList.innerHTML = '';
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+      
+      let html = '';
+      
+      kandidatList.forEach(k => {
+        const isSelesai = sudahMenilai[k.id] === true;
+        const fileId = extractDriveFileId(k.linkMakalahDrive);
+        const previewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : null;
+        
+        // initialize draft memory
+        if (!localDrafts[k.id]) localDrafts[k.id] = {};
+        
+        html += `
+          <div class="kandidat-section animate-slide-up">
+            <div class="kandidat-header" onclick="toggleAccordion('${k.id}')">
+              <div class="kandidat-avatar">👤</div>
+              <div class="kandidat-info" style="flex: 1;">
+                <h3>${k.nama}</h3>
+                <p>NIP: ${k.nip || '—'} &nbsp;|&nbsp; ${k.unitKerja || '—'}</p>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                ${isSelesai 
+                  ? `<span class="badge badge-success">✅ Sudah Dinilai</span>` 
+                  : `<span class="badge badge-warning">⏳ Belum Dinilai</span>`
+                }
+                <span id="icon-${k.id}" style="color: var(--text-muted); font-size: 1.1rem;">
+                  ${isSelesai ? '▼' : '▲'}
+                </span>
+              </div>
+            </div>
+            
+            <div id="body-${k.id}" class="kandidat-body ${isSelesai ? 'hidden' : ''}">
+        `;
+        
+        if (isSelesai) {
+          html += `
+              <div class="alert alert-success">
+                <span class="alert-icon">✅</span>
+                <div>
+                  <strong>Penilaian telah tersimpan.</strong>
+                  <p style="margin-top: 0.25rem; font-size: 0.85rem;">
+                    Anda tidak dapat mengubah penilaian yang sudah dikirim.
+                  </p>
+                </div>
+              </div>
+          `;
+        } else {
+          html += `<form onsubmit="submitPenilaian(event, '${k.id}', '${k.nama}')">`;
+          
+          if (k.linkMakalahDrive) {
+            html += `
+              <div class="pdf-preview-wrapper mb-4">
+                <div class="pdf-preview-header">
+                  <span>📄 Makalah: <strong>${k.nama}</strong></span>
+                  <a href="${k.linkMakalahDrive}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">🔗 Buka di Tab Baru</a>
+                </div>
+            `;
+            if (previewUrl) {
+              html += `<iframe src="${previewUrl}" class="pdf-preview-iframe" title="Makalah ${k.nama}"></iframe>`;
+            } else {
+              html += `<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">⚠️ Link tidak sesuai format Google Drive standar. Gunakan tombol di atas.</div>`;
+            }
+            html += `</div>`;
+          }
+          
+          INDIKATOR.forEach((label, idx) => {
+            const key = `i${idx + 1}`;
+            html += `
+              <div class="indikator-row">
+                <div class="indikator-label">
+                  <span class="indikator-num">${idx + 1}</span>
+                  ${label}
+                </div>
+                <div class="radio-group">
+            `;
+            NILAI_OPTIONS.forEach(opt => {
+              const checked = localDrafts[k.id][key] === opt.value ? 'checked' : '';
+              html += `
+                  <div class="radio-option score-${opt.value}">
+                    <input type="radio" id="${k.id}-${key}-${opt.value}" name="${k.id}-${key}" value="${opt.value}" required onchange="updateSkor('${k.id}', ${idx + 1}, ${opt.value})" ${checked}>
+                    <label for="${k.id}-${key}-${opt.value}">
+                      <span class="score-badge">${opt.value}</span>
+                      ${opt.label}
+                    </label>
+                  </div>
+              `;
+            });
+            html += `
+                </div>
+              </div>
+            `;
+          });
+          
+          html += `
+              <div class="score-summary">
+                <div class="score-item">
+                  <div class="label">Total Skor</div>
+                  <div class="value"><span id="total-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/40</span></div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Nilai Makalah (20%)</div>
+                  <div class="value" id="nilai20-${k.id}">0.00</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Indikator Terisi</div>
+                  <div class="value"><span id="count-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/8</span></div>
+                </div>
+              </div>
+              
+              <div id="error-${k.id}" class="alert alert-error mt-3 hidden"></div>
+              
+              <button type="submit" id="btn-submit-${k.id}" class="btn btn-primary btn-lg btn-block mt-4" disabled>
+                💾 Simpan Penilaian ${k.nama}
+              </button>
+            </form>
+          `;
+        }
+        
+        html += `
+            </div>
+          </div>
+        `;
+      });
+      
+      elKandidatList.innerHTML = html;
+      
+      // trigger update skor awal (jika ada draft)
+      kandidatList.forEach(k => {
+        if (!sudahMenilai[k.id] && localDrafts[k.id] && Object.keys(localDrafts[k.id]).length > 0) {
+          // just trigger a dummy update to refresh scores
+          updateSkor(k.id, 0, 0); 
+        }
+      });
+    }
+
+    // Start
+    loadData();
+  </script>
+</body>
+</html>
