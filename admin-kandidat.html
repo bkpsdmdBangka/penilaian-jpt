@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola Kandidat - JPT Pratama</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR ADMIN -->
+  <nav class="navbar">
+    <a href="admin-dashboard.html" class="navbar-brand">
+      <span class="brand-icon">📋</span>
+      <span>Penilaian Makalah</span>
+    </a>
+    <ul class="navbar-nav">
+      <li><a href="admin-dashboard.html" class="nav-link">📊 Dashboard</a></li>
+      <li><a href="admin-kandidat.html" class="nav-link active">👤 Kandidat</a></li>
+      <li><a href="admin-penilai.html" class="nav-link">🗝️ Penilai</a></li>
+      <li><button class="btn btn-secondary btn-sm" id="btnLogout">Keluar</button></li>
+    </ul>
+  </nav>
+
+  <div class="page-wrapper">
+    <div class="container">
+      <div class="page-header">
+        <h1>Kelola Kandidat</h1>
+        <p>Tambah, ubah, dan hapus data kandidat peserta seleksi JPT Pratama</p>
+      </div>
+
+      <!-- FORM KANDIDAT -->
+      <div class="card mb-6">
+        <h2 style="font-size: 1.1rem; margin-bottom: 1rem;" id="formTitle">Tambah Kandidat Baru</h2>
+        
+        <form id="kandidatForm">
+          <input type="hidden" id="editId">
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label" for="nama">Nama Lengkap *</label>
+              <input type="text" id="nama" class="form-input" required placeholder="Gelar dan Nama Lengkap">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="nip">NIP *</label>
+              <input type="text" id="nip" class="form-input" required placeholder="Contoh: 198001012005011001">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="unitKerja">Unit Kerja Saat Ini</label>
+            <input type="text" id="unitKerja" class="form-input" placeholder="Contoh: Dinas Kesehatan">
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="linkMakalahDrive">Link Google Drive Makalah *</label>
+            <input type="url" id="linkMakalahDrive" class="form-input" required placeholder="https://drive.google.com/file/d/XXX/view?usp=sharing">
+            <div class="form-hint" style="margin-top: 0.25rem;">
+              Pastikan link memiliki akses <strong>"Anyone with the link - Viewer"</strong>. Link harus mengandung format <code>/file/d/ID</code>.
+            </div>
+          </div>
+          
+          <div id="formAlert" class="alert hidden mt-3"></div>
+          
+          <div class="flex gap-2 mt-4">
+            <button type="submit" id="btnSave" class="btn btn-primary">💾 Simpan Kandidat</button>
+            <button type="button" id="btnCancel" class="btn btn-secondary hidden">Batal Edit</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- DATA LIST -->
+      <div id="loadingState" class="loading-center hidden">
+        <div class="spinner"></div>
+        <span>Memuat data...</span>
+      </div>
+
+      <div id="tableContainer" class="table-wrapper">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Kandidat</th>
+              <th>NIP & Unit Kerja</th>
+              <th>Makalah Drive</th>
+              <th style="text-align: right;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from './js/app.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+    import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) window.location.replace('admin.html');
+      else loadData();
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.replace('admin.html');
+    });
+
+    const form = document.getElementById('kandidatForm');
+    const btnSave = document.getElementById('btnSave');
+    const btnCancel = document.getElementById('btnCancel');
+    const formAlert = document.getElementById('formAlert');
+    const formTitle = document.getElementById('formTitle');
+    
+    let g_kandidat = [];
+
+    async function loadData() {
+      const tbody = document.querySelector('#dataTable tbody');
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4"><div class="spinner spinner-sm" style="margin: 0 auto;"></div></td></tr>';
+      
+      try {
+        const q = query(collection(db, 'kandidat'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        g_kandidat = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderTable();
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger p-4">Gagal memuat data</td></tr>';
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector('#dataTable tbody');
+      tbody.innerHTML = '';
+      
+      if (g_kandidat.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">Belum ada data kandidat</td></tr>';
+        return;
+      }
+      
+      g_kandidat.forEach((k, i) => {
+        const fileIdMatch = k.linkMakalahDrive?.match(/\/file\/d\/([^/]+)/);
+        const hasValidLink = !!fileIdMatch;
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="color: var(--text-muted)">${i + 1}</td>
+          <td><strong>${k.nama}</strong></td>
+          <td>
+            <div style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary)">${k.nip || '-'}</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted)">${k.unitKerja || '-'}</div>
+          </td>
+          <td>
+            ${hasValidLink 
+              ? `<a href="${k.linkMakalahDrive}" target="_blank" class="badge badge-primary" style="text-decoration:none">🔗 Valid Drive Link</a>`
+              : `<span class="badge badge-warning">⚠️ Format Link Salah</span>`
+            }
+          </td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="btn btn-secondary btn-sm btn-edit" data-id="${k.id}">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm btn-delete" data-id="${k.id}">🗑️ Hapus</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      document.querySelectorAll('.btn-edit').forEach(b => b.addEventListener('click', handleEdit));
+      document.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', handleDelete));
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const id = document.getElementById('editId').value;
+      const data = {
+        nama: document.getElementById('nama').value.trim(),
+        nip: document.getElementById('nip').value.trim(),
+        unitKerja: document.getElementById('unitKerja').value.trim(),
+        linkMakalahDrive: document.getElementById('linkMakalahDrive').value.trim(),
+      };
+      
+      if (!data.linkMakalahDrive.includes('/file/d/')) {
+        showAlert('Format link Google Drive salah. Harus mengandung /file/d/...', 'error');
+        return;
+      }
+      
+      btnSave.disabled = true;
+      btnSave.innerHTML = '<div class="spinner spinner-sm"></div> Menyimpan...';
+      
+      try {
+        if (id) {
+          await updateDoc(doc(db, 'kandidat', id), { ...data, updatedAt: serverTimestamp() });
+          showAlert('Kandidat berhasil diubah', 'success');
+        } else {
+          await addDoc(collection(db, 'kandidat'), { ...data, createdAt: serverTimestamp() });
+          showAlert('Kandidat berhasil ditambahkan', 'success');
+        }
+        resetForm();
+        loadData();
+      } catch (err) {
+        console.error(err);
+        showAlert(err.message, 'error');
+      } finally {
+        btnSave.disabled = false;
+        btnSave.innerHTML = '💾 Simpan Kandidat';
+      }
+    });
+
+    function handleEdit(e) {
+      const id = e.target.getAttribute('data-id');
+      const k = g_kandidat.find(x => x.id === id);
+      if (!k) return;
+      
+      document.getElementById('editId').value = k.id;
+      document.getElementById('nama').value = k.nama || '';
+      document.getElementById('nip').value = k.nip || '';
+      document.getElementById('unitKerja').value = k.unitKerja || '';
+      document.getElementById('linkMakalahDrive').value = k.linkMakalahDrive || '';
+      
+      formTitle.textContent = 'Edit Kandidat';
+      btnSave.innerHTML = '💾 Update Kandidat';
+      btnCancel.classList.remove('hidden');
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    btnCancel.addEventListener('click', resetForm);
+
+    function resetForm() {
+      form.reset();
+      document.getElementById('editId').value = '';
+      formTitle.textContent = 'Tambah Kandidat Baru';
+      btnSave.innerHTML = '💾 Simpan Kandidat';
+      btnCancel.classList.add('hidden');
+      formAlert.classList.add('hidden');
+    }
+
+    async function handleDelete(e) {
+      if (!confirm('Hapus kandidat ini? Data yang terhapus tidak dapat dikembalikan. Pastikan belum ada penilaian untuk kandidat ini.')) return;
+      
+      const id = e.target.getAttribute('data-id');
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = '...';
+      
+      try {
+        await deleteDoc(doc(db, 'kandidat', id));
+        showAlert('Kandidat terhapus', 'success');
+        loadData();
+      } catch (err) {
+        console.error(err);
+        showAlert(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '🗑️ Hapus';
+      }
+    }
+
+    function showAlert(msg, type) {
+      formAlert.className = `alert alert-${type} mt-3`;
+      formAlert.innerHTML = `
+        <span class="alert-icon">${type === 'error' ? '⚠️' : '✅'}</span>
+        <span>${msg}</span>
+      `;
+      formAlert.classList.remove('hidden');
+      if (type === 'success') {
+        setTimeout(() => formAlert.classList.add('hidden'), 3000);
+      }
+    }
+
+  </script>
+</body>
+</html>

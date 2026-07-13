@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - JPT Pratama</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="login-page">
+    <div class="login-card animate-slide-up">
+      <div class="login-logo">
+        <div class="icon">📋</div>
+        <h1>Admin Panel</h1>
+        <p>Penilaian Makalah JPT Pratama</p>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input id="email" type="email" class="form-input" placeholder="admin@example.com" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input id="password" type="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <div id="errorAlert" class="alert alert-error hidden">
+          <span class="alert-icon">⚠️</span>
+          <span id="errorMsg"></span>
+        </div>
+
+        <button type="submit" id="btnSubmit" class="btn btn-primary btn-lg btn-block">
+          🔐 Masuk
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.5rem; font-size: 0.8rem; color: var(--text-muted);">
+        Hanya untuk panitia yang berwenang.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from './js/app.js';
+    import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.replace('admin-dashboard.html');
+      }
+    });
+
+    const form = document.getElementById('loginForm');
+    const btn = document.getElementById('btnSubmit');
+    const errorAlert = document.getElementById('errorAlert');
+    const errorMsg = document.getElementById('errorMsg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner spinner-sm"></div> Masuk...';
+      errorAlert.classList.add('hidden');
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // Akan redirect otomatis karena onAuthStateChanged
+      } catch (err) {
+        console.error(err);
+        const messages = {
+          'auth/user-not-found': 'Email tidak terdaftar.',
+          'auth/wrong-password': 'Password salah.',
+          'auth/invalid-email': 'Format email tidak valid.',
+          'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi nanti.',
+          'auth/invalid-credential': 'Email atau password salah.',
+        };
+        errorMsg.textContent = messages[err.code] || 'Login gagal. Periksa email dan password Anda.';
+        errorAlert.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '🔐 Masuk';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,150 +1,61 @@
-# Aplikasi Penilaian Makalah — JPT Pratama
+# Penilaian Makalah JPT Pratama (Full CDN Edition)
 
-Aplikasi web untuk rekap penilaian makalah seleksi **Jabatan Pimpinan Tinggi Pratama** berbasis token Firebase.
+Aplikasi web untuk penilaian makalah seleksi Jabatan Pimpinan Tinggi (JPT) Pratama.
+Versi ini menggunakan **Vanilla HTML, CSS, JavaScript** dengan **Firebase SDK via CDN**.
 
-## Fitur
+Aplikasi ini dapat di-host secara gratis di **GitHub Pages** untuk frontend, sementara database, authentication, dan cloud functions tetap berada di Firebase.
 
-| Fitur | Keterangan |
-|---|---|
-| `/nilai?token=XXXXX` | Halaman penilaian tanpa login (token-based) |
-| `/admin` | Login admin Firebase Auth |
-| `/admin/dashboard` | Rekap nilai semua kandidat + export CSV |
-| `/admin/kandidat` | CRUD kandidat + link makalah Google Drive |
-| `/admin/penilai` | Generate token + kirim link ke penilai |
+## 🚀 Persiapan Deployment
 
-## Tech Stack
+### 1. Cloud Functions & Firestore (Firebase)
 
-- **Frontend**: React + Vite (SPA)
-- **Backend**: Firebase Firestore + Authentication + Cloud Functions v2 (Node 20)
-- **Deploy**: Firebase Hosting
+Meskipun frontend di-host di GitHub Pages, Anda tetap perlu mendeploy backend-nya ke Firebase.
 
----
-
-## Setup Awal
-
-### 1. Prasyarat
+Pastikan Node.js terinstall. Buka terminal di folder project ini:
 
 ```bash
-npm install -g firebase-tools
-firebase login
-```
-
-### 2. Install Dependencies
-
-```bash
-# Frontend
-npm install
-
-# Cloud Functions
+# Masuk ke folder functions dan install dependensi
 cd functions
 npm install
 cd ..
+
+# Deploy Rules dan Cloud Functions
+firebase deploy --only firestore:rules,functions
 ```
 
-### 3. Set Custom Claim Admin
-
-Setelah deploy, Anda perlu memberi klaim `admin: true` ke akun admin.
-
-**Cara termudah via Firebase Console:**
-1. Buka [Firebase Console](https://console.firebase.google.com) → Authentication
-2. Buat akun admin (Email/Password) jika belum ada
-3. Deploy functions terlebih dahulu (langkah 4)
-4. Panggil Cloud Function `setAdminClaim` dari Firebase Console atau Emulator:
+**Set Admin Pertama Kali:**
+Setelah deploy berhasil, jalankan perintah ini (ganti email sesuai dengan akun yang Anda daftarkan di menu Authentication Firebase):
 
 ```bash
-# Menggunakan firebase-tools (setelah deploy)
-firebase functions:call setAdminClaim --data '{"email":"admin@yourdomain.com"}'
-```
-
-> **Catatan**: Fungsi `setAdminClaim` di `functions/index.js` dapat dihapus setelah admin pertama berhasil diset, untuk keamanan.
-
-### 4. Build & Deploy
-
-```bash
-# Build frontend
-npm run build
-
-# Deploy semuanya (Hosting + Functions + Firestore rules)
-firebase deploy
-
-# Atau deploy per komponen:
-firebase deploy --only hosting
-firebase deploy --only functions
-firebase deploy --only firestore:rules
+firebase functions:call setAdminClaim --data '{"email":"admin@example.com"}'
 ```
 
 ---
 
-## Penggunaan
+### 2. Frontend (GitHub Pages)
 
-### Admin
-1. Buka `https://<your-domain>/admin` dan login
-2. Tambahkan kandidat di menu **Kandidat** beserta link makalah Google Drive
-3. Tambahkan penilai di menu **Penilai** → sistem akan generate token unik
-4. Salin link penilaian dan kirim ke masing-masing penilai (WhatsApp/email)
-5. Pantau progres di **Dashboard** dan export ke CSV saat semua selesai
+Tidak perlu proses *build*. Seluruh file HTML/CSS/JS bisa langsung jalan di browser.
 
-### Penilai
-1. Buka link yang dikirim panitia (contoh: `https://<domain>/nilai?token=ABCD123`)
-2. Baca makalah PDF yang tampil di halaman (atau buka di tab baru)
-3. Isi penilaian 8 indikator untuk setiap kandidat
-4. Klik **Simpan Penilaian** → penilaian tersimpan dan tidak bisa diubah
+1. Buka repositori project ini di GitHub.
+2. Pergi ke **Settings** > **Pages** (di sidebar kiri).
+3. Di bagian **Build and deployment**:
+   - Source: `Deploy from a branch`
+   - Branch: `main`, folder `/ (root)`
+4. Klik **Save**.
+5. Tunggu beberapa menit, URL aplikasi Anda akan muncul di bagian atas halaman (biasanya `https://<username>.github.io/<repo-name>`).
 
----
+## 📁 Struktur File
 
-## Peraturan Google Drive
+- `index.html`: Redirect ke halaman penilai.
+- `nilai.html`: Halaman penilai (diakses menggunakan query `?token=...`).
+- `admin.html`: Login admin.
+- `admin-dashboard.html`: Halaman rekapitulasi skor.
+- `admin-kandidat.html`: CRUD data kandidat peserta JPT.
+- `admin-penilai.html`: Generate token link untuk penilai.
+- `css/style.css`: Styling sistem.
+- `js/app.js`: Inisialisasi Firebase CDN dan export instances.
+- `functions/`: Berisi logic backend `submitPenilaian` dan `generatePenilaiToken`.
 
-> ⚠️ **PENTING**: File makalah di Google Drive **HARUS** dibagikan dengan akses:
-> **"Anyone with the link" → Viewer**
->
-> Jika tidak, penilai tidak akan bisa membuka/preview makalah di halaman penilaian.
-
-Cara share:
-1. Buka file di Google Drive
-2. Klik **Share** → **Change to anyone with the link**
-3. Set role ke **Viewer**
-4. Salin link dan tempel di form kandidat (admin)
-
----
-
-## Struktur Firestore
-
-```
-kandidat/{kandidatId}
-  - nama: string
-  - nip: string
-  - unitKerja: string
-  - linkMakalahDrive: string
-
-penilai/{token}          ← token = document ID (7 karakter alfanumerik)
-  - namaPenilai: string
-  - assignedKandidat: string[]
-  - sudahMenilai: { [kandidatId]: boolean }
-
-penilaian/{autoId}       ← 1 dokumen = 1 penilai × 1 kandidat
-  - token: string
-  - kandidatId: string
-  - indikator: { i1..i8: 2|4|5 }
-  - jumlah: number        ← dihitung server
-  - nilai20persen: number ← dihitung server
-  - submittedAt: timestamp
-```
-
----
-
-## Rumus Nilai
-
-```
-Jumlah        = i1 + i2 + ... + i8   (maks 40)
-Nilai (20%)   = (Jumlah / 40) × 100 × 20%
-Nilai Akhir   = rata-rata Nilai (20%) dari semua penilai
-```
-
----
-
-## Keamanan
-
-- Token penilaian bersifat **one-time** per kandidat (tidak bisa submit ulang)
-- Semua kalkulasi nilai dilakukan di **server (Cloud Function)**, bukan di browser
-- Validasi nilai indikator dilakukan di server: hanya boleh 2, 4, atau 5
-- Admin wajib memiliki custom claim `admin: true` untuk akses dashboard dan generate token
+## ⚠️ Perhatian
+- Semua file makalah di Google Drive **WAJIB** diatur privasinya menjadi **"Anyone with the link - Viewer"** agar bisa dipreview oleh iframe.
+- Fungsi `setAdminClaim` di `functions/index.js` sebaiknya dihapus setelah akun admin berhasil dibuat untuk alasan keamanan.

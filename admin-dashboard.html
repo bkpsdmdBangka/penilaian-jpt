@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Admin - JPT Pratama</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR ADMIN -->
+  <nav class="navbar">
+    <a href="admin-dashboard.html" class="navbar-brand">
+      <span class="brand-icon">📋</span>
+      <span>Penilaian Makalah</span>
+    </a>
+    <ul class="navbar-nav">
+      <li><a href="admin-dashboard.html" class="nav-link active">📊 Dashboard</a></li>
+      <li><a href="admin-kandidat.html" class="nav-link">👤 Kandidat</a></li>
+      <li><a href="admin-penilai.html" class="nav-link">🗝️ Penilai</a></li>
+      <li><button class="btn btn-secondary btn-sm" id="btnLogout">Keluar</button></li>
+    </ul>
+  </nav>
+
+  <div class="page-wrapper">
+    <div class="container">
+      <div class="page-header">
+        <h1>Dashboard Rekap Penilaian</h1>
+        <p>Pantau progres dan hasil penilaian makalah seluruh kandidat</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Kandidat</div>
+          <div class="stat-value" id="statKandidat">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Penilai</div>
+          <div class="stat-value" id="statPenilai">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Penilaian Masuk</div>
+          <div class="stat-value" id="statPenilaian">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tugas Selesai</div>
+          <div class="stat-value" id="statSelesai">0</div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mb-6" style="flex-wrap: wrap;">
+        <button class="btn btn-success" id="btnExport">📥 Export CSV</button>
+        <button class="btn btn-secondary" id="btnRefresh">🔄 Refresh</button>
+      </div>
+
+      <div id="loadingState" class="loading-center">
+        <div class="spinner"></div>
+        <span>Memuat data...</span>
+      </div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">📭</div>
+        <h3>Belum Ada Kandidat</h3>
+        <p>Tambahkan kandidat terlebih dahulu di halaman Kandidat.</p>
+      </div>
+
+      <div id="tableContainer" class="table-wrapper hidden">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Nama Kandidat</th>
+              <th>NIP</th>
+              <th>Unit Kerja</th>
+              <th>Penilai Selesai</th>
+              <th>Rata-rata Nilai (20%)</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>📊 Detail Penilaian</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div style="margin-bottom: 1.5rem;">
+        <div id="modalNama" style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;"></div>
+        <div id="modalInfo" style="font-size: 0.85rem; color: var(--text-secondary);"></div>
+        <div class="badge badge-primary" style="margin-top: 0.5rem;">
+          Rata-rata Nilai (20%): <strong id="modalRata" style="margin-left: 0.25rem;"></strong>
+        </div>
+      </div>
+      <div id="modalEmpty" class="empty-state hidden" style="padding: 2rem;">
+        <div class="empty-icon">📭</div>
+        <p>Belum ada penilai yang menilai kandidat ini.</p>
+      </div>
+      <div id="modalTableContainer" class="table-wrapper hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Penilai</th>
+              <th>Total Skor</th>
+              <th>Nilai (20%)</th>
+            </tr>
+          </thead>
+          <tbody id="modalTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from './js/app.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+    import { collection, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+
+    // Auth Check
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.replace('admin.html');
+      } else {
+        loadData();
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.replace('admin.html');
+    });
+
+    let g_kandidat = [];
+    let g_penilaian = [];
+    let g_penilai = [];
+    let g_penilaiMap = {};
+
+    async function loadData() {
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('tableContainer').classList.add('hidden');
+      document.getElementById('emptyState').classList.add('hidden');
+
+      try {
+        const [kSnap, pSnap, jSnap] = await Promise.all([
+          getDocs(query(collection(db, 'kandidat'), orderBy('nama'))),
+          getDocs(collection(db, 'penilaian')),
+          getDocs(collection(db, 'penilai'))
+        ]);
+
+        g_kandidat = kSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        g_penilaian = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        g_penilai = jSnap.docs.map(d => ({ token: d.id, ...d.data() }));
+        
+        g_penilaiMap = {};
+        g_penilai.forEach(p => { g_penilaiMap[p.token] = p.namaPenilai; });
+
+        updateStats();
+        renderTable();
+      } catch (err) {
+        console.error(err);
+        alert('Gagal memuat data dashboard.');
+      } finally {
+        document.getElementById('loadingState').classList.add('hidden');
+      }
+    }
+
+    document.getElementById('btnRefresh').addEventListener('click', loadData);
+
+    function updateStats() {
+      document.getElementById('statKandidat').textContent = g_kandidat.length;
+      document.getElementById('statPenilai').textContent = g_penilai.length;
+      document.getElementById('statPenilaian').textContent = g_penilaian.length;
+      
+      const totalSelesai = g_penilai.reduce((sum, p) => sum + Object.values(p.sudahMenilai || {}).filter(Boolean).length, 0);
+      document.getElementById('statSelesai').textContent = totalSelesai;
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector('#dataTable tbody');
+      tbody.innerHTML = '';
+
+      if (g_kandidat.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('tableContainer').classList.remove('hidden');
+
+      g_kandidat.forEach((k, i) => {
+        const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
+        const count = penilaians.length;
+        const rata = count > 0 
+          ? (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / count).toFixed(2)
+          : '—';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="color: var(--text-muted)">${i + 1}</td>
+          <td><strong>${k.nama}</strong></td>
+          <td style="color: var(--text-secondary); font-family: monospace;">${k.nip || '—'}</td>
+          <td style="color: var(--text-secondary); font-size: 0.85rem;">${k.unitKerja || '—'}</td>
+          <td>
+            ${count > 0 
+              ? `<span class="badge badge-success">${count} penilai</span>`
+              : `<span class="badge badge-secondary">Belum ada</span>`
+            }
+          </td>
+          <td>
+            <strong class="${count > 0 ? 'text-primary-color' : 'text-muted'}">${rata}</strong>
+          </td>
+          <td>
+            <button class="btn btn-secondary btn-sm btn-detail" data-id="${k.id}">🔍 Detail</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.btn-detail').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.target.getAttribute('data-id');
+          const kand = g_kandidat.find(k => k.id === id);
+          openDetailModal(kand);
+        });
+      });
+    }
+
+    window.closeModal = function() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    function openDetailModal(kandidat) {
+      document.getElementById('modalNama').textContent = kandidat.nama;
+      let info = [];
+      if (kandidat.nip) info.push(`NIP: ${kandidat.nip}`);
+      if (kandidat.unitKerja) info.push(kandidat.unitKerja);
+      document.getElementById('modalInfo').textContent = info.join(' | ');
+
+      const penilaians = g_penilaian.filter(p => p.kandidatId === kandidat.id);
+      
+      const rataRata = penilaians.length > 0
+        ? (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / penilaians.length).toFixed(2)
+        : '0.00';
+      document.getElementById('modalRata').textContent = rataRata;
+
+      const tbody = document.getElementById('modalTbody');
+      tbody.innerHTML = '';
+
+      if (penilaians.length === 0) {
+        document.getElementById('modalEmpty').classList.remove('hidden');
+        document.getElementById('modalTableContainer').classList.add('hidden');
+      } else {
+        document.getElementById('modalEmpty').classList.add('hidden');
+        document.getElementById('modalTableContainer').classList.remove('hidden');
+        
+        penilaians.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${g_penilaiMap[p.token] || p.token}</td>
+            <td><strong>${p.jumlah}</strong>/40</td>
+            <td><strong class="text-primary-color">${p.nilai20persen?.toFixed(2)}</strong></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+      const rows = [];
+      rows.push(['Nama Kandidat', 'NIP', 'Unit Kerja', 'Nama Penilai', 'Jumlah Skor', 'Nilai Makalah (20%)']);
+
+      g_kandidat.forEach(k => {
+        const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
+        if (penilaians.length === 0) {
+          rows.push([k.nama, k.nip || '', k.unitKerja || '', '-', '-', '-']);
+        } else {
+          penilaians.forEach(p => {
+            rows.push([
+              k.nama,
+              k.nip || '',
+              k.unitKerja || '',
+              g_penilaiMap[p.token] || p.token,
+              p.jumlah,
+              p.nilai20persen?.toFixed(2)
+            ]);
+          });
+        }
+      });
+
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rekap-penilaian-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+  </script>
+</body>
+</html>
