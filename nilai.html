@@ -101,9 +101,8 @@
   </div>
 
   <script type="module">
-    import { db, functions } from './js/app.js';
-    import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-    import { httpsCallable } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js';
+    import { db } from './js/app.js';
+    import { collection, doc, getDoc, addDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
     document.getElementById('yearText').textContent = new Date().getFullYear();
 
@@ -277,8 +276,27 @@
       errorDiv.classList.add('hidden');
       
       try {
-        const submitFn = httpsCallable(functions, 'submitPenilaian');
-        await submitFn({ token, kandidatId, indikator: draft });
+        // Hitung total skor
+        let jumlah = 0;
+        for (let i = 1; i <= 8; i++) {
+          jumlah += draft[`i${i}`] || 0;
+        }
+        const nilai20persen = parseFloat(((jumlah / 40) * 100 * 0.2).toFixed(2));
+
+        // 1. Simpan ke koleksi penilaian
+        await addDoc(collection(db, 'penilaian'), {
+          token,
+          kandidatId,
+          indikator: draft,
+          jumlah,
+          nilai20persen,
+          createdAt: serverTimestamp()
+        });
+
+        // 2. Update status sudahMenilai di dokumen penilai
+        await updateDoc(doc(db, 'penilai', token), {
+          [`sudahMenilai.${kandidatId}`]: true
+        });
         
         sudahMenilai[kandidatId] = true;
         renderKandidatList();

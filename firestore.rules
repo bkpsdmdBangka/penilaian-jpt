@@ -5,36 +5,45 @@ service cloud.firestore {
 
     // ─── Helper functions ───────────────────────────────────────
 
-    // Cek apakah caller adalah admin (Firebase Auth + custom claim)
+    // Cek apakah caller adalah admin (Email terdaftar di koleksi admins)
     function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+
+    // ─── admins/{email} ─────────────────────────────────────────
+    match /admins/{email} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.token.email == email);
+      allow write: if false; // Hanya diubah dari Firebase Console langsung
     }
 
     // ─── penilai/{token} ────────────────────────────────────────
-    // Publik boleh baca 1 dokumen jika ID-nya = token (tidak boleh list)
-    // Write hanya admin (atau Cloud Function via Admin SDK)
+    // Publik boleh baca 1 dokumen jika ID-nya = token
     match /penilai/{token} {
-      allow get: if true;   // baca 1 dokumen berdasarkan ID: publik boleh
+      allow get: if true;
       allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow create, delete: if isAdmin();
+      
+      // Penilai boleh update field 'sudahMenilai' saja (client-side bypass)
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sudahMenilai'])
+      );
     }
 
     // ─── penilaian/{id} ─────────────────────────────────────────
-    // Seluruh operasi dari client ditolak; submit hanya via Cloud Function (Admin SDK)
+    // Client submit form penilaian langsung kesini
     match /penilaian/{id} {
-      allow read: if isAdmin();
-      allow create, update, delete: if false; // Cloud Function (Admin SDK) bypass rules
+      allow read, update, delete: if isAdmin();
+      // Mengizinkan penilai membuat dokumen penilaian baru asalkan formatnya benar
+      allow create: if request.resource.data.keys().hasAll(['token', 'kandidatId', 'jumlah', 'nilai20persen', 'createdAt']);
     }
 
     // ─── kandidat/{id} ──────────────────────────────────────────
-    // Read publik (agar nama kandidat tampil di form penilai tanpa login)
-    // Write hanya admin
     match /kandidat/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    // ─── Default: tolak semua koleksi lain ──────────────────────
+    // ─── Default ──────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

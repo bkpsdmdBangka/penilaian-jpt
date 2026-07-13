@@ -86,10 +86,9 @@
   </div>
 
   <script type="module">
-    import { auth, db, functions, getBaseUrl } from './js/app.js';
+    import { auth, db, getBaseUrl } from './js/app.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
-    import { collection, doc, getDocs, deleteDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
-    import { httpsCallable } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js';
+    import { collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, (user) => {
       if (!user) window.location.replace('admin.html');
@@ -108,6 +107,16 @@
     
     let g_kandidat = [];
     let g_penilai = [];
+
+    // Helper untuk generate string acak
+    function generateRandomString(length) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Tanpa 0, O, 1, I, l
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
 
     async function loadData() {
       try {
@@ -172,10 +181,14 @@
       btnGenerate.innerHTML = '<div class="spinner spinner-sm"></div> Generating...';
       
       try {
-        const generateFn = httpsCallable(functions, 'generatePenilaiToken');
-        const res = await generateFn({ namaPenilai, assignedKandidat: assignedIds });
+        const token = generateRandomString(7);
+        await setDoc(doc(db, 'penilai', token), {
+          namaPenilai,
+          assignedKandidat: assignedIds,
+          sudahMenilai: {},
+          createdAt: serverTimestamp()
+        });
         
-        const token = res.data.token;
         const link = `${getBaseUrl()}/nilai.html?token=${token}`;
         
         formAlert.className = `alert alert-success mt-4`;
