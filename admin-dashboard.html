@@ -304,13 +304,10 @@
     document.getElementById('btnExport').addEventListener('click', () => {
       const rows = [];
       
-      // Cari jumlah penilai maksimal untuk menentukan jumlah kolom
-      let maxPenilai = 0;
-      g_kandidat.forEach(k => {
-        const count = g_penilaian.filter(p => p.kandidatId === k.id).length;
-        if(count > maxPenilai) maxPenilai = count;
-      });
-      if (maxPenilai === 0) maxPenilai = 1;
+      // Ambil daftar penilai dan balik urutannya (ASC / yang pertama dibuat ada di kiri)
+      // Karena saat fetch kita pakai orderBy('createdAt', 'desc'), maka reverse() akan jadi ASC
+      const sortedPenilai = [...g_penilai].reverse();
+      const maxPenilai = sortedPenilai.length > 0 ? sortedPenilai.length : 1;
 
       // ROW 1
       const row1 = ['NAMA KANDIDAT & NIP', 'REKAPITULASI NILAI PESERTA JPT PRATAMA'];
@@ -320,7 +317,11 @@
 
       // ROW 2
       const row2 = [''];
-      for(let i = 1; i <= maxPenilai; i++) row2.push(`PENILAI ${i}`);
+      if (sortedPenilai.length === 0) {
+        row2.push('PENILAI');
+      } else {
+        sortedPenilai.forEach(p => row2.push(p.namaPenilai));
+      }
       row2.push('', ''); // Empty for merged last two columns
       rows.push(row2);
 
@@ -331,23 +332,30 @@
         
         let sumJumlah = 0;
         let sum20 = 0;
+        let evaluatedCount = 0;
 
-        for(let i = 0; i < maxPenilai; i++) {
-          if (i < penilaians.length) {
-            const p = penilaians[i];
-            dataRow.push(p.jumlah);
-            sumJumlah += (p.jumlah || 0);
-            sum20 += (p.nilai20persen || 0);
-          } else {
-            dataRow.push('-');
-          }
+        if (sortedPenilai.length === 0) {
+          dataRow.push('-');
+        } else {
+          sortedPenilai.forEach(penilai => {
+            // Cari apakah penilai ini sudah mensubmit nilai untuk kandidat k.id
+            const p = penilaians.find(x => x.token === penilai.token);
+            if (p) {
+              dataRow.push(p.jumlah);
+              sumJumlah += (p.jumlah || 0);
+              sum20 += (p.nilai20persen || 0);
+              evaluatedCount++;
+            } else {
+              dataRow.push('-');
+            }
+          });
         }
 
-        if (penilaians.length > 0) {
-          const avgJumlah = sumJumlah / penilaians.length;
+        if (evaluatedCount > 0) {
+          const avgJumlah = sumJumlah / evaluatedCount;
           const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
           const rataJumlahPersen = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
-          const rata20 = (sum20 / penilaians.length).toFixed(2);
+          const rata20 = (sum20 / evaluatedCount).toFixed(2);
           
           dataRow.push(rataJumlahPersen, rata20);
         } else {
