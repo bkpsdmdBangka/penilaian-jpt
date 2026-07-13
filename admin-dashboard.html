@@ -77,6 +77,7 @@
               <th>NIP</th>
               <th>Unit Kerja</th>
               <th>Penilai Selesai</th>
+              <th>Jumlah Nilai Rata-Rata / Persentase (%)</th>
               <th>Rata-rata Nilai (20%)</th>
               <th>Aksi</th>
             </tr>
@@ -98,8 +99,13 @@
       <div style="margin-bottom: 1.5rem;">
         <div id="modalNama" style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;"></div>
         <div id="modalInfo" style="font-size: 0.85rem; color: var(--text-secondary);"></div>
-        <div class="badge badge-primary" style="margin-top: 0.5rem;">
-          Rata-rata Nilai (20%): <strong id="modalRata" style="margin-left: 0.25rem;"></strong>
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+          <div class="badge badge-secondary">
+            Jumlah Nilai / Persen: <strong id="modalJumlahPersen" style="margin-left: 0.25rem;"></strong>
+          </div>
+          <div class="badge badge-primary">
+            Rata-rata Nilai (20%): <strong id="modalRata" style="margin-left: 0.25rem;"></strong>
+          </div>
         </div>
       </div>
       <div id="modalEmpty" class="empty-state hidden" style="padding: 2rem;">
@@ -198,9 +204,17 @@
       g_kandidat.forEach((k, i) => {
         const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
         const count = penilaians.length;
-        const rata = count > 0 
-          ? (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / count).toFixed(2)
-          : '—';
+        
+        let rata20 = '—';
+        let rataJumlahPersen = '—';
+        
+        if (count > 0) {
+          rata20 = (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / count).toFixed(2);
+          const sumJumlah = penilaians.reduce((s, p) => s + (p.jumlah || 0), 0);
+          const avgJumlah = sumJumlah / count;
+          const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
+          rataJumlahPersen = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
+        }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -215,7 +229,10 @@
             }
           </td>
           <td>
-            <strong class="${count > 0 ? 'text-primary-color' : 'text-muted'}">${rata}</strong>
+            <strong class="text-secondary">${rataJumlahPersen}</strong>
+          </td>
+          <td>
+            <strong class="${count > 0 ? 'text-primary-color' : 'text-muted'}">${rata20}</strong>
           </td>
           <td>
             <button class="btn btn-secondary btn-sm btn-detail" data-id="${k.id}">🔍 Detail</button>
@@ -246,10 +263,19 @@
 
       const penilaians = g_penilaian.filter(p => p.kandidatId === kandidat.id);
       
-      const rataRata = penilaians.length > 0
-        ? (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / penilaians.length).toFixed(2)
-        : '0.00';
-      document.getElementById('modalRata').textContent = rataRata;
+      let rataRata20 = '0.00';
+      let rataJumlahPersenModal = '0.00 / 0%';
+
+      if (penilaians.length > 0) {
+        rataRata20 = (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / penilaians.length).toFixed(2);
+        const sumJumlah = penilaians.reduce((s, p) => s + (p.jumlah || 0), 0);
+        const avgJumlah = sumJumlah / penilaians.length;
+        const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
+        rataJumlahPersenModal = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
+      }
+      
+      document.getElementById('modalRata').textContent = rataRata20;
+      document.getElementById('modalJumlahPersen').textContent = rataJumlahPersenModal;
 
       const tbody = document.getElementById('modalTbody');
       tbody.innerHTML = '';
@@ -277,20 +303,22 @@
 
     document.getElementById('btnExport').addEventListener('click', () => {
       const rows = [];
-      rows.push(['Nama Kandidat', 'NIP', 'Unit Kerja', 'Nama Penilai', 'Jumlah Skor', 'Nilai Makalah (20%)']);
+      rows.push(['Nama Kandidat', 'NIP', 'Unit Kerja', 'Nama Penilai', 'Jumlah Skor', 'Persentase (%)', 'Nilai Makalah (20%)']);
 
       g_kandidat.forEach(k => {
         const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
         if (penilaians.length === 0) {
-          rows.push([k.nama, k.nip || '', k.unitKerja || '', '-', '-', '-']);
+          rows.push([k.nama, k.nip || '', k.unitKerja || '', '-', '-', '-', '-']);
         } else {
           penilaians.forEach(p => {
+            const persen = ((p.jumlah / 40) * 100).toFixed(2) + '%';
             rows.push([
               k.nama,
               k.nip || '',
               k.unitKerja || '',
               g_penilaiMap[p.token] || p.token,
               p.jumlah,
+              persen,
               p.nilai20persen?.toFixed(2)
             ]);
           });
