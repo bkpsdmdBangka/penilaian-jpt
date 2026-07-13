@@ -303,26 +303,58 @@
 
     document.getElementById('btnExport').addEventListener('click', () => {
       const rows = [];
-      rows.push(['Nama Kandidat', 'NIP', 'Unit Kerja', 'Nama Penilai', 'Jumlah Skor', 'Persentase (%)', 'Nilai Makalah (20%)']);
+      
+      // Cari jumlah penilai maksimal untuk menentukan jumlah kolom
+      let maxPenilai = 0;
+      g_kandidat.forEach(k => {
+        const count = g_penilaian.filter(p => p.kandidatId === k.id).length;
+        if(count > maxPenilai) maxPenilai = count;
+      });
+      if (maxPenilai === 0) maxPenilai = 1;
 
+      // ROW 1
+      const row1 = ['NAMA KANDIDAT & NIP', 'REKAPITULASI NILAI PESERTA JPT PRATAMA'];
+      for(let i = 1; i < maxPenilai; i++) row1.push(''); // Empty cells for visual merge
+      row1.push('Jumlah Nilai Rata-Rata / Persentase (%)', 'BOBOT 20%');
+      rows.push(row1);
+
+      // ROW 2
+      const row2 = [''];
+      for(let i = 1; i <= maxPenilai; i++) row2.push(`PENILAI ${i}`);
+      row2.push('', ''); // Empty for merged last two columns
+      rows.push(row2);
+
+      // DATA ROWS
       g_kandidat.forEach(k => {
         const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
-        if (penilaians.length === 0) {
-          rows.push([k.nama, k.nip || '', k.unitKerja || '', '-', '-', '-', '-']);
-        } else {
-          penilaians.forEach(p => {
-            const persen = ((p.jumlah / 40) * 100).toFixed(2) + '%';
-            rows.push([
-              k.nama,
-              k.nip || '',
-              k.unitKerja || '',
-              g_penilaiMap[p.token] || p.token,
-              p.jumlah,
-              persen,
-              p.nilai20persen?.toFixed(2)
-            ]);
-          });
+        const dataRow = [`${k.nama}\n${k.nip || '-'}`];
+        
+        let sumJumlah = 0;
+        let sum20 = 0;
+
+        for(let i = 0; i < maxPenilai; i++) {
+          if (i < penilaians.length) {
+            const p = penilaians[i];
+            dataRow.push(p.jumlah);
+            sumJumlah += (p.jumlah || 0);
+            sum20 += (p.nilai20persen || 0);
+          } else {
+            dataRow.push('-');
+          }
         }
+
+        if (penilaians.length > 0) {
+          const avgJumlah = sumJumlah / penilaians.length;
+          const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
+          const rataJumlahPersen = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
+          const rata20 = (sum20 / penilaians.length).toFixed(2);
+          
+          dataRow.push(rataJumlahPersen, rata20);
+        } else {
+          dataRow.push('-', '-');
+        }
+
+        rows.push(dataRow);
       });
 
       const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
