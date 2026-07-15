@@ -461,6 +461,7 @@
           jumlah         : penilaianItem.jumlah    || 0,
           namaPanitia    : namaPenilai,
           filename       : `${jenisKey === 'paparan' ? 'Paparan' : 'Penulisan'} - ${safeNama} - ${namaPenilai}`,
+          templateFile   : 'template_paparan.docx'
         });
       } catch (err) {
         console.error(err);

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Contoh Tabel Word</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<p><strong>CARA PENGGUNAAN:</strong></p>
+<ol>
+  <li>Buka file HTML ini langsung menggunakan Microsoft Word (Klik Kanan filenya -> Open With -> Word), ATAU buka di browser lalu <strong>Copy</strong> tabel di bawah ini.</li>
+  <li><strong>Paste</strong> ke dalam file <code>template.docx</code> milik Bapak.</li>
+  <li>Sesuaikan font, warna, atau lebar kolom langsung di Microsoft Word sesuai selera Bapak. (Tag-tag di dalamnya jangan sampai terhapus)</li>
+</ol>
+
+<br>
+
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">NO</th>
+      <th rowspan="2">INDIKATOR PENILAIAN</th>
+      <th colspan="3">NILAI</th>
+    </tr>
+    <tr>
+      <th>Sangat Memadai (5)</th>
+      <th>Memadai (4)</th>
+      <th>Kurang Memadai (2)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Ini adalah baris yang akan diulang oleh docxtemplater -->
+    <tr>
+      <td>{#indikators}{no}</td>
+      <td style="text-align: left;">{label}</td>
+      <td>{val5}</td>
+      <td>{val4}</td>
+      <td>{val2}{/indikators}</td>
+    </tr>
+    <!-- Baris Jumlah -->
+    <tr>
+      <th colspan="2">JUMLAH</th>
+      <th colspan="3">{jumlah}</th>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>
