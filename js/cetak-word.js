@@ -116,8 +116,10 @@ export async function generateWordDoc(params) {
   
   if ('n1' in indikator) {
     flatVars['rata'] = (sumPaparan / 7).toFixed(2);
+    flatVars['total'] = sumPaparan;
   } else {
     flatVars['rata'] = '';
+    flatVars['total'] = '';
   }
 
   // ── Render dokumen ─────────────────────────────────────────────────────────
