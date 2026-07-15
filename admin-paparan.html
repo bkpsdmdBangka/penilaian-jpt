@@ -221,6 +221,7 @@
 
   <script type="module">
     import { auth, db } from './js/app.js';
+    import { generateWordDoc } from './js/cetak-word.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
     import { collection, getDocs, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
@@ -408,11 +409,15 @@
             <td><strong style="color:#a78bfa;">${p.nilai30persen?.toFixed(2)}</strong></td>
             <td>
               <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                <button class="btn btn-sm" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;font-size:0.75rem;" onclick="cetakFromAdmin('${kandidat.id}', '${kandidat.nama.replace(/'/g,"\\'")}', '${kandidat.nip || ''}', '${(kandidat.unitKerja||'').replace(/'/g,"\\'")}', '${p.token}', '${namaPenilai.replace(/'/g,"\\'")}', 'paparan')">
-                  🖨️ Paparan
+                <button class="btn btn-sm" id="btn-paparan-${p.id}"
+                  style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;font-size:0.75rem;"
+                  onclick="cetakFromAdmin('${kandidat.id}','${kandidat.nip||''}','${(kandidat.unitKerja||'').replace(/'/g,"\\'")}','${namaPenilai.replace(/'/g,"\\'")}','${p.token}','${p.id}','paparan')">
+                  💾 Paparan
                 </button>
-                <button class="btn btn-sm" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border:none;font-size:0.75rem;" onclick="cetakFromAdmin('${kandidat.id}', '${kandidat.nama.replace(/'/g,"\\'")}', '${kandidat.nip || ''}', '${(kandidat.unitKerja||'').replace(/'/g,"\\'")}', '${p.token}', '${namaPenilai.replace(/'/g,"\\'")}', 'penulisan')">
-                  🖨️ Penulisan
+                <button class="btn btn-sm" id="btn-penulisan-${p.id}"
+                  style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border:none;font-size:0.75rem;"
+                  onclick="cetakFromAdmin('${kandidat.id}','${kandidat.nip||''}','${(kandidat.unitKerja||'').replace(/'/g,"\\'")}','${namaPenilai.replace(/'/g,"\\'")}','${p.token}','${p.id}','penulisan')">
+                  💾 Penulisan
                 </button>
               </div>
             </td>
@@ -424,95 +429,45 @@
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
-    // ─── CETAK DARI ADMIN ───────────────────────────────────────────
-    // Menggunakan struktur tabel dari template_dok_penilai/table_penilaian_paparan.html
-    // Variabel template: {JUDUL_PENILAIAN} {NAMA_PESERTA} {NIP_PESERTA}
-    //                   {UNIT_KERJA_PESERTA} {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
-    window.cetakFromAdmin = function(kandidatId, kandidatNama, kandidatNip, kandidatUnit, penilaiToken, namaPenilai, jenisKey) {
+    // ─── DOWNLOAD WORD DARI ADMIN — PAPARAN ──────────────────────────────────
+    // Menggunakan generateWordDoc dari js/cetak-word.js
+    // Placeholder: {JUDUL_PENILAIAN} {NAMA_PESERTA} {NIP_PESERTA}
+    //              {UNIT_KERJA_PESERTA} {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
+    window.cetakFromAdmin = async function(kandidatId, kandidatNip, kandidatUnit, namaPenilai, penilaiToken, penilaianDocId, jenisKey) {
       const jenis = JENIS_PENILAIAN.find(j => j.key === jenisKey);
       if (!jenis) return;
 
-      // Cari data penilaian dari data yang sudah di-load
+      // Cari data kandidat dan penilaian
+      const kand = g_kandidat.find(k => k.id === kandidatId);
+      if (!kand) { alert('Data kandidat tidak ditemukan.'); return; }
+
       const penilaianItem = g_penilaian.find(p => p.kandidatId === kandidatId && p.token === penilaiToken);
-      if (!penilaianItem) {
-        alert('Data penilaian tidak ditemukan.');
-        return;
+      if (!penilaianItem) { alert('Data penilaian tidak ditemukan.'); return; }
+
+      // Tampilkan loading pada tombol yang diklik
+      const btnId  = jenisKey === 'paparan' ? `btn-paparan-${penilaianDocId}` : `btn-penulisan-${penilaianDocId}`;
+      const btn    = document.getElementById(btnId);
+      const origTx = btn?.innerHTML;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner spinner-sm"></div>'; }
+
+      try {
+        const safeNama = kand.nama.replace(/[^a-zA-Z0-9 _\-]/g, '');
+        await generateWordDoc({
+          judulPenilaian : jenis.label,
+          namaPeserta    : kand.nama,
+          nipPeserta     : kand.nip       || '-',
+          unitKerja      : kand.unitKerja || '-',
+          indikator      : penilaianItem.indikator || {},
+          jumlah         : penilaianItem.jumlah    || 0,
+          namaPanitia    : namaPenilai,
+          filename       : `${jenisKey === 'paparan' ? 'Paparan' : 'Penulisan'} - ${safeNama} - ${namaPenilai}`,
+        });
+      } catch (err) {
+        console.error(err);
+        alert('Gagal membuat dokumen Word: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origTx; }
       }
-
-      const indikator = penilaianItem.indikator || {};
-      const jumlah    = penilaianItem.jumlah    || 0;
-
-      // Bangun baris tabel persis seperti table_penilaian_paparan.html
-      // Baris ke-5 (Usul Kelayakan Rekomendasi) memiliki height:120px
-      let rows = '';
-      INDIKATOR.forEach((label, idx) => {
-        const num  = idx + 1;
-        const val  = parseInt(indikator[`i${num}`] || 0);
-        const is5  = val === 5;
-        const is4  = val === 4;
-        const is2  = val === 2;
-        // Kelas td untuk kolom indikator: baris-5 = ind-tall (120px), lainnya = ind
-        const indClass = num === 5 ? 'ind-tall' : 'ind';
-        rows += `
-          <tr>
-            <td class="no">${num}</td>
-            <td class="${indClass}">${label}</td>
-            <td class="chk">${is5 ? '&#10003;' : ''}</td>
-            <td class="chk">${is4 ? '&#10003;' : ''}</td>
-            <td class="chk">${is2 ? '&#10003;' : ''}</td>
-          </tr>`;
-      });
-
-      const today = new Date();
-      const bulan = ['Januari','Februari','Maret','April','Mei','Juni',
-                     'Juli','Agustus','September','Oktober','November','Desember'];
-      const tgl   = `${today.getDate()} ${bulan[today.getMonth()]} ${today.getFullYear()}`;
-
-      // Susun HTML cetak menggunakan 6 variabel template
-      const printContent = `
-        <div class="print-judul">${jenis.label}</div>
-
-        <table class="print-info-tbl">
-          <tr><td>Nama Peserta</td><td class="colon">:</td><td><strong>${kandidatNama}</strong></td></tr>
-          <tr><td>NIP</td>         <td class="colon">:</td><td>${kandidatNip  || '-'}</td></tr>
-          <tr><td>Unit Kerja</td>  <td class="colon">:</td><td>${kandidatUnit || '-'}</td></tr>
-        </table>
-
-        <table class="print-nilai-tbl" border="1" cellspacing="0" cellpadding="8">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width:40px;">NO</th>
-              <th rowspan="2">INDIKATOR PENILAIAN</th>
-              <th colspan="3">NILAI</th>
-            </tr>
-            <tr>
-              <th style="width:110px;">Sangat Memadai (5)</th>
-              <th style="width:110px;">Memadai (4)</th>
-              <th style="width:110px;">Kurang Memadai (2)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-            <tr>
-              <td colspan="2" class="jml" style="text-align:center;"><strong>JUMLAH</strong></td>
-              <td colspan="3" class="jml">&nbsp;&nbsp;${jumlah}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="print-ttd">
-          <span>Bangka, ${tgl}</span><br>
-          <span>Panitia Penilai,</span>
-          <span class="spasi"></span>
-          <strong>${namaPenilai}</strong>
-        </div>
-      `;
-
-      const printArea = document.getElementById('printArea');
-      printArea.innerHTML = printContent;
-      printArea.style.display = 'block';
-      window.print();
-      setTimeout(() => { printArea.style.display = 'none'; printArea.innerHTML = ''; }, 800);
     };
 
     // ─────────────────────────────────────────────────────────────────
