@@ -172,14 +172,6 @@ export async function generateWordDoc(params) {
 
   const zip = new PizZip(buf);
 
-  // Perbaikan Penting: 
-  // docxtemplater butuh prefix '@' untuk merender raw XML secara aman (seperti tabel).
-  // Karena template dari user menggunakan {TABLE_PENILAIAN}, kita ubah XML-nya 
-  // sebelum docxtemplater memprosesnya menjadi {@TABLE_PENILAIAN}.
-  let docXml = zip.file('word/document.xml').asText();
-  docXml = docXml.replace(/\{TABLE_PENILAIAN\}/g, '{@TABLE_PENILAIAN}');
-  zip.file('word/document.xml', docXml);
-
   const doc = new Docxtemplater(zip, {
     paragraphLoop : true,
     linebreaks    : true,
