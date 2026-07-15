@@ -1,18 +1,22 @@
 /**
- * js/cetak-word.js
- * Utility untuk menghasilkan dokumen Word (.docx) dari template.docx
- * dengan metode penggantian placeholder {VARIABEL}
+ * js/cetak-word.js  (v2 — menggunakan docxtemplater untuk keandalan)
+ *
+ * Alur kerja:
+ * 1. Load PizZip + docxtemplater dari CDN
+ * 2. docxtemplater mengganti placeholder TEKS secara aman (menangani fragmentasi XML)
+ * 3. Untuk {TABLE_PENILAIAN}: diganti sentinal → cari sentinal di XML → inject <w:tbl>
+ * 4. Output uint8array → Blob → download
  *
  * Placeholder yang dikenali di template.docx:
- *   {JUDUL_PENILAIAN}     - judul lembar penilaian
- *   {NAMA_PESERTA}        - nama kandidat
- *   {NIP_PESERTA}         - NIP kandidat
- *   {UNIT_KERJA_PESERTA}  - unit kerja kandidat
- *   {TABLE_PENILAIAN}     - diganti dengan tabel OOXML 8 indikator
- *   {NAMA_PANITIA_PENILAI}- nama penilai / asesor
+ *   {JUDUL_PENILAIAN}      {NAMA_PESERTA}   {NIP_PESERTA}
+ *   {UNIT_KERJA_PESERTA}   {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
  */
 
 const TEMPLATE_URL = './template_dok_penilai/template.docx';
+
+// Sentinel unik yang akan dipakai docxtemplater untuk TABLE_PENILAIAN,
+// lalu kita ganti manual di XML setelah render
+const TABLE_SENTINEL = 'XXTABLESENTINELXX';
 
 const INDIKATOR_LABELS = [
   'Proporsi Halaman',
@@ -25,22 +29,39 @@ const INDIKATOR_LABELS = [
   'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
 ];
 
-// ── PizZip lazy loader ──────────────────────────────────────────────────────
-let _pizzipReady = null;
-function loadPizZip() {
-  if (window.PizZip) return Promise.resolve(window.PizZip);
-  if (_pizzipReady) return _pizzipReady;
-  _pizzipReady = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/pizzip@3.1.4/dist/pizzip.js';
-    s.onload  = () => resolve(window.PizZip);
-    s.onerror = () => reject(new Error('Gagal memuat PizZip dari CDN'));
+// ── CDN loader ───────────────────────────────────────────────────────────────
+let _pizzipPromise     = null;
+let _docxtmpPromise    = null;
+
+function _loadScript(src, globalKey) {
+  if (window[globalKey]) return Promise.resolve(window[globalKey]);
+  return new Promise((resolve, reject) => {
+    const s   = document.createElement('script');
+    s.src     = src;
+    s.onload  = () => resolve(window[globalKey]);
+    s.onerror = () => reject(new Error(`Gagal memuat ${src}`));
     document.head.appendChild(s);
   });
-  return _pizzipReady;
 }
 
-// ── XML helpers ─────────────────────────────────────────────────────────────
+async function loadLibs() {
+  if (!_pizzipPromise) {
+    _pizzipPromise = _loadScript(
+      'https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.js',
+      'PizZip'
+    );
+  }
+  if (!_docxtmpPromise) {
+    _docxtmpPromise = _loadScript(
+      'https://cdn.jsdelivr.net/npm/docxtemplater@3.48.0/build/docxtemplater.js',
+      'docxtemplater'
+    );
+  }
+  const [PizZip, Docxtemplater] = await Promise.all([_pizzipPromise, _docxtmpPromise]);
+  return { PizZip, Docxtemplater };
+}
+
+// ── XML helper ───────────────────────────────────────────────────────────────
 function xmlEsc(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -49,77 +70,56 @@ function xmlEsc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// ── OOXML table builder ──────────────────────────────────────────────────────
 /**
- * Word sering memecah {PLACEHOLDER} menjadi beberapa <w:r> (run) terpisah.
- * Fungsi ini menggabungkan run-run dalam satu paragraf jika hasil gabungan
- * teks mereka membentuk sebuah placeholder.
- */
-function defragmentXml(xml) {
-  return xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, para => {
-    // Kumpulkan semua teks dari <w:t> dalam paragraf ini
-    const tRe = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let combined = '', m;
-    while ((m = tRe.exec(para)) !== null) combined += m[1];
-
-    // Jika gabungan teks mengandung placeholder, tapi belum ada dalam satu <w:t>
-    if (
-      /\{[A-Z_]+\}/.test(combined) &&
-      !/<w:t[^>]*>[^<]*\{[A-Z_]+\}[^<]*<\/w:t>/.test(para)
-    ) {
-      const pPr  = para.match(/(<w:pPr>[\s\S]*?<\/w:pPr>)/)?.[1] ?? '';
-      const rPr  = para.match(/(<w:rPr>[\s\S]*?<\/w:rPr>)/)?.[1] ?? '';
-      const open = para.match(/^(<w:p\b[^>]*>)/)?.[1] ?? '<w:p>';
-      return `${open}${pPr}<w:r>${rPr}<w:t xml:space="preserve">${xmlEsc(combined)}</w:t></w:r></w:p>`;
-    }
-    return para;
-  });
-}
-
-// ── OOXML Table Builder ─────────────────────────────────────────────────────
-/**
- * Menghasilkan OOXML <w:tbl> dengan struktur persis seperti
- * template_dok_penilai/table_penilaian_makalah.html (dan paparan.html):
+ * Menghasilkan OOXML <w:tbl> yang sesuai dengan struktur
+ * template_dok_penilai/table_penilaian_*.html
  *
- *  Header baris-1: NO (rowspan 2) | INDIKATOR PENILAIAN (rowspan 2) | NILAI (colspan 3)
- *  Header baris-2:                                                    SM(5) | M(4) | KM(2)
- *  Baris 1–8:      nomor | indikator                                  √ di kolom sesuai nilai
- *  Baris JUMLAH:   (span 2) JUMLAH | (span 3) total jumlah
+ * Header 2-baris:
+ *   Baris 1: NO (rowspan2) | INDIKATOR PENILAIAN (rowspan2) | NILAI (colspan3)
+ *   Baris 2: -            | -                              | SM(5) | M(4) | KM(2)
  *
- * Lebar kolom (TWIPs, total ≈ 9000 = lebar usable A4 margin normal):
- *   NO: 500 | INDIKATOR: 4500 | tiap kolom nilai: 1333
+ * Kolom (total ~9000 twip = A4 margin normal):
+ *   NO:560 | INDIKATOR:4480 | 3×VAL:1320
+ *
+ * Baris-5 (Usul Kelayakan) height 1700twip = ~3cm sesuai HTML height:120px
  */
 function buildTableOoxml(indikatorData, jumlah) {
-  const W_NO  = 500;
-  const W_IND = 4500;
-  const W_VAL = 1333; // × 3 = 3999, total 9000 - 1 twip
+  const W_NO  = 560;
+  const W_IND = 4480;
+  const W_VAL = 1320;
 
-  // Grey fill untuk header
-  const HEADER_SHADE = `<w:shd w:val="clear" w:color="auto" w:fill="D3D3D3"/>`;
+  // Borders setiap sel
+  const BORDERS = `<w:tcBorders>
+    <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+  </w:tcBorders>`;
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const tc = (w, content, extra = '') =>
-    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${extra}</w:tcPr>${content}</w:tc>`;
+  const GREY = `<w:shd w:val="clear" w:color="auto" w:fill="D3D3D3"/>`;
 
-  const tcSpan = (w, span, content, extra = '') =>
-    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/><w:gridSpan w:val="${span}"/>${extra}</w:tcPr>${content}</w:tc>`;
+  // ── Atom builders ──────────────────────────────────────────────────────────
+  const tcPr = (w, extra = '') =>
+    `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${BORDERS}${extra}</w:tcPr>`;
 
-  const para = (runs, align = 'center') =>
-    `<w:p><w:pPr><w:jc w:val="${align}"/><w:spacing w:line="240" w:lineRule="auto"/></w:pPr>${runs}</w:p>`;
-
-  const emptyPara = () => `<w:p><w:pPr/></w:p>`;
+  const para = (runs, center = false) =>
+    `<w:p>${center ? '<w:pPr><w:jc w:val="center"/></w:pPr>' : ''}<w:r>${runs}</w:r></w:p>`;
 
   const boldRun = txt =>
-    `<w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">${xmlEsc(txt)}</w:t></w:r>`;
+    `<w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">${xmlEsc(txt)}</w:t>`;
 
   const normalRun = txt =>
-    `<w:r><w:t xml:space="preserve">${xmlEsc(txt)}</w:t></w:r>`;
+    `<w:t xml:space="preserve">${xmlEsc(txt)}</w:t>`;
 
   const checkRun = (val, target) =>
     val === target
-      ? `<w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>&#10003;</w:t></w:r>`
-      : `<w:r><w:t xml:space="preserve"> </w:t></w:r>`;
+      ? `<w:rPr><w:b/></w:rPr><w:t>&#10003;</w:t>`
+      : `<w:t xml:space="preserve"> </w:t>`;
 
-  // ── Table properties ───────────────────────────────────────────────────────
+  const emptyPara = () => `<w:p><w:pPr/></w:p>`;
+
+  // ── Tabel properties ───────────────────────────────────────────────────────
   const tblPr = `<w:tblPr>
     <w:tblW w:w="5000" w:type="pct"/>
     <w:tblBorders>
@@ -130,7 +130,6 @@ function buildTableOoxml(indikatorData, jumlah) {
       <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
       <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
     </w:tblBorders>
-    <w:tblLook w:val="0000"/>
   </w:tblPr>`;
 
   const tblGrid = `<w:tblGrid>
@@ -142,26 +141,27 @@ function buildTableOoxml(indikatorData, jumlah) {
   </w:tblGrid>`;
 
   // ── Header baris 1 ─────────────────────────────────────────────────────────
+  // NO + INDIKATOR dengan vMerge restart; NILAI dengan gridSpan=3
   const hRow1 = `<w:tr>
     <w:trPr><w:tblHeader/></w:trPr>
-    ${tc(W_NO,          para(boldRun('NO')),                  `<w:vMerge w:val="restart"/>${HEADER_SHADE}`)}
-    ${tc(W_IND,         para(boldRun('INDIKATOR PENILAIAN')), `<w:vMerge w:val="restart"/>${HEADER_SHADE}`)}
-    ${tcSpan(W_VAL * 3, 3, para(boldRun('NILAI')),            HEADER_SHADE)}
+    <w:tc>${tcPr(W_NO, `<w:vMerge w:val="restart"/>${GREY}`)}${para(boldRun('NO'), true)}</w:tc>
+    <w:tc>${tcPr(W_IND, `<w:vMerge w:val="restart"/>${GREY}`)}${para(boldRun('INDIKATOR PENILAIAN'), true)}</w:tc>
+    <w:tc>${tcPr(W_VAL * 3, `<w:gridSpan w:val="3"/>${GREY}`)}${para(boldRun('NILAI'), true)}</w:tc>
   </w:tr>`;
 
   // ── Header baris 2 ─────────────────────────────────────────────────────────
+  // NO + INDIKATOR: vMerge (continuation); 3 sub-header nilai
   const hRow2 = `<w:tr>
     <w:trPr><w:tblHeader/></w:trPr>
-    ${tc(W_NO,  emptyPara(), `<w:vMerge/>${HEADER_SHADE}`)}
-    ${tc(W_IND, emptyPara(), `<w:vMerge/>${HEADER_SHADE}`)}
-    ${tc(W_VAL, para(boldRun('Sangat Memadai (5)')), HEADER_SHADE)}
-    ${tc(W_VAL, para(boldRun('Memadai (4)')),        HEADER_SHADE)}
-    ${tc(W_VAL, para(boldRun('Kurang Memadai (2)')), HEADER_SHADE)}
+    <w:tc>${tcPr(W_NO, `<w:vMerge/>${GREY}`)}${emptyPara()}</w:tc>
+    <w:tc>${tcPr(W_IND, `<w:vMerge/>${GREY}`)}${emptyPara()}</w:tc>
+    <w:tc>${tcPr(W_VAL, GREY)}${para(boldRun('Sangat Memadai (5)'), true)}</w:tc>
+    <w:tc>${tcPr(W_VAL, GREY)}${para(boldRun('Memadai (4)'), true)}</w:tc>
+    <w:tc>${tcPr(W_VAL, GREY)}${para(boldRun('Kurang Memadai (2)'), true)}</w:tc>
   </w:tr>`;
 
-  // ── Baris data indikator 1–8 ───────────────────────────────────────────────
-  // Baris ke-5 (Usul Kelayakan Rekomendasi) memiliki tinggi ekstra,
-  // sesuai template HTML: height:120px ≈ 1700 twips
+  // ── Baris data 1–8 ─────────────────────────────────────────────────────────
+  // Baris ke-5 (Usul Kelayakan Rekomendasi) memiliki tinggi ekstra: 1700 twip
   let dataRows = '';
   INDIKATOR_LABELS.forEach((label, idx) => {
     const num  = idx + 1;
@@ -172,100 +172,110 @@ function buildTableOoxml(indikatorData, jumlah) {
 
     dataRows += `<w:tr>
       ${trPr}
-      ${tc(W_NO,  para(normalRun(String(num)), 'center'))}
-      ${tc(W_IND, para(normalRun(label), 'left'))}
-      ${tc(W_VAL, para(checkRun(val, 5), 'center'))}
-      ${tc(W_VAL, para(checkRun(val, 4), 'center'))}
-      ${tc(W_VAL, para(checkRun(val, 2), 'center'))}
+      <w:tc>${tcPr(W_NO)}${para(normalRun(String(num)), true)}</w:tc>
+      <w:tc>${tcPr(W_IND)}${para(normalRun(label))}</w:tc>
+      <w:tc>${tcPr(W_VAL)}${para(checkRun(val, 5), true)}</w:tc>
+      <w:tc>${tcPr(W_VAL)}${para(checkRun(val, 4), true)}</w:tc>
+      <w:tc>${tcPr(W_VAL)}${para(checkRun(val, 2), true)}</w:tc>
     </w:tr>`;
   });
 
-  // ── Baris JUMLAH ──────────────────────────────────────────────────────────
+  // ── Baris JUMLAH ───────────────────────────────────────────────────────────
+  // Kolom 1+2 digabung untuk label JUMLAH; kolom 3+4+5 digabung untuk nilai
   const jumlahRow = `<w:tr>
-    ${tcSpan(W_NO + W_IND, 2, para(boldRun('JUMLAH'), 'center'))}
-    ${tcSpan(W_VAL * 3,    3, para(boldRun(String(jumlah)), 'left'))}
+    <w:tc>${tcPr(W_NO + W_IND, '<w:gridSpan w:val="2"/>')}${para(boldRun('JUMLAH'), true)}</w:tc>
+    <w:tc>${tcPr(W_VAL * 3, '<w:gridSpan w:val="3"/>')}${para(boldRun(String(jumlah ?? 0)))}</w:tc>
   </w:tr>`;
 
   return `<w:tbl>${tblPr}${tblGrid}${hRow1}${hRow2}${dataRows}${jumlahRow}</w:tbl>`;
 }
 
-// ── Main export ─────────────────────────────────────────────────────────────
+// ── Main export ──────────────────────────────────────────────────────────────
 /**
- * Menghasilkan file Word (.docx) dari template dan mengunduhnya.
- *
  * @param {Object} params
- * @param {string} params.judulPenilaian   - nilai {JUDUL_PENILAIAN}
- * @param {string} params.namaPeserta      - nilai {NAMA_PESERTA}
- * @param {string} params.nipPeserta       - nilai {NIP_PESERTA}
- * @param {string} params.unitKerja        - nilai {UNIT_KERJA_PESERTA}
- * @param {Object} params.indikator        - { i1..i8: nilai } untuk tabel
- * @param {number} params.jumlah           - total skor
- * @param {string} params.namaPanitia      - nilai {NAMA_PANITIA_PENILAI}
- * @param {string} [params.filename]       - nama file download (opsional)
+ * @param {string} params.judulPenilaian
+ * @param {string} params.namaPeserta
+ * @param {string} params.nipPeserta
+ * @param {string} params.unitKerja
+ * @param {Object} params.indikator        { i1..i8: nilai }
+ * @param {number} params.jumlah
+ * @param {string} params.namaPanitia
+ * @param {string} [params.filename]
  */
 export async function generateWordDoc(params) {
-  const {
-    judulPenilaian,
-    namaPeserta,
-    nipPeserta,
-    unitKerja,
-    indikator,
-    jumlah,
-    namaPanitia,
-    filename,
-  } = params;
+  const { judulPenilaian, namaPeserta, nipPeserta, unitKerja,
+          indikator, jumlah, namaPanitia, filename } = params;
 
-  // 1. Muat PizZip
-  const PizZip = await loadPizZip();
+  // 1. Muat library
+  const { PizZip, Docxtemplater } = await loadLibs();
 
   // 2. Ambil template.docx
   const resp = await fetch(TEMPLATE_URL);
   if (!resp.ok) throw new Error(`Gagal memuat template.docx (HTTP ${resp.status})`);
   const buf = await resp.arrayBuffer();
 
-  // 3. Buka sebagai ZIP
+  // 3. Buka dengan PizZip
   const zip = new PizZip(buf);
 
-  // 4. Ambil XML dokumen utama
-  let xml = zip.file('word/document.xml').asText();
-
-  // 5. Perbaiki fragmentasi placeholder lintas run
-  xml = defragmentXml(xml);
-
-  // 6. Ganti placeholder teks sederhana
-  const replacePH = (key, val) => {
-    xml = xml.split(`{${key}}`).join(xmlEsc(val));
-  };
-  replacePH('JUDUL_PENILAIAN',    judulPenilaian);
-  replacePH('NAMA_PESERTA',       namaPeserta);
-  replacePH('NIP_PESERTA',        nipPeserta || '-');
-  replacePH('UNIT_KERJA_PESERTA', unitKerja  || '-');
-  replacePH('NAMA_PANITIA_PENILAI', namaPanitia);
-
-  // 7. Ganti placeholder {TABLE_PENILAIAN}:
-  //    Cari <w:p> yang mengandung placeholder tersebut, ganti seluruh
-  //    paragraf dengan elemen <w:tbl> OOXML
-  const tableOoxml = buildTableOoxml(indikator, jumlah);
-  xml = xml.replace(
-    /<w:p[ >][\s\S]*?\{TABLE_PENILAIAN\}[\s\S]*?<\/w:p>/,
-    tableOoxml
-  );
-
-  // 8. Simpan XML yang sudah dimodifikasi
-  zip.file('word/document.xml', xml);
-
-  // 9. Hasilkan blob dan trigger download
-  const blob = zip.generate({
-    type: 'blob',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    compression: 'DEFLATE',
+  // 4. Gunakan docxtemplater untuk mengganti placeholder TEKS
+  //    (docxtemplater menangani fragmentasi XML secara internal)
+  //    TABLE_PENILAIAN → sentinal unik, akan diganti manual setelah render
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop : true,
+    linebreaks    : true,
+    // nullGetter memastikan placeholder tak dikenal tidak menyebabkan error
+    nullGetter    : (part) => {
+      if (!part.module && part.value === 'TABLE_PENILAIAN') return TABLE_SENTINEL;
+      return '';
+    },
   });
 
-  const safeFilename = (filename || `penilaian-${namaPeserta}`).replace(/[^a-zA-Z0-9 _\-]/g, '');
+  doc.render({
+    JUDUL_PENILAIAN    : judulPenilaian,
+    NAMA_PESERTA       : namaPeserta,
+    NIP_PESERTA        : nipPeserta     || '-',
+    UNIT_KERJA_PESERTA : unitKerja      || '-',
+    NAMA_PANITIA_PENILAI: namaPanitia,
+    TABLE_PENILAIAN    : TABLE_SENTINEL,  // docxtemplater tulis sentinal ke XML
+  });
+
+  // 5. Ambil ZIP hasil render dan inject tabel OOXML
+  const outZip = doc.getZip();
+  let xml = outZip.file('word/document.xml').asText();
+
+  // Cari paragraf yang mengandung sentinal lalu ganti seluruh <w:p> dengan <w:tbl>
+  const tableOoxml = buildTableOoxml(indikator, jumlah);
+  const sentinelRe = new RegExp(
+    `<w:p\\b[^>]*>[\\s\\S]*?${TABLE_SENTINEL}[\\s\\S]*?<\\/w:p>`
+  );
+
+  if (sentinelRe.test(xml)) {
+    xml = xml.replace(sentinelRe, tableOoxml);
+  } else {
+    // Fallback: cari {TABLE_PENILAIAN} literal (jika docxtemplater tidak mengganti)
+    const literalRe = /<w:p\b[^>]*>[\s\S]*?\{TABLE_PENILAIAN\}[\s\S]*?<\/w:p>/;
+    xml = xml.replace(literalRe, tableOoxml);
+  }
+
+  outZip.file('word/document.xml', xml);
+
+  // 6. Generate sebagai Uint8Array → Blob (lebih reliable dari type:'blob')
+  const uint8 = outZip.generate({
+    type        : 'uint8array',
+    compression : 'DEFLATE',
+  });
+
+  const blob = new Blob([uint8], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+
+  // 7. Download
+  const safeFile = (filename || `penilaian-${namaPeserta}`)
+    .replace(/[/\\?%*:|"<>]/g, '-').trim();
   const url = URL.createObjectURL(blob);
   const a   = document.createElement('a');
-  a.href     = url;
-  a.download = `${safeFilename}.docx`;
+  a.href    = url;
+  a.download = `${safeFile}.docx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
