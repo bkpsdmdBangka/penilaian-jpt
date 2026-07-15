@@ -83,6 +83,43 @@ export async function generateWordDoc(params) {
     };
   });
 
+  // ── Siapkan Flat Variables untuk Tabel Statis ──────────────────────────────
+  const flatVars = {};
+  for (let idx = 0; idx < 8; idx++) {
+    const num = idx + 1;
+    const val = parseInt(indikator[`i${num}`] ?? 0);
+    flatVars[`i${num}_5`] = val === 5 ? '✓' : '';
+    flatVars[`i${num}_4`] = val === 4 ? '✓' : '';
+    flatVars[`i${num}_2`] = val === 2 ? '✓' : '';
+  }
+
+  // ── Variabel khusus Paparan (0-100) ────────────────────────────────────────
+  let sumPaparan = 0;
+  for (let idx = 0; idx < 7; idx++) {
+    const num = idx + 1;
+    if (`n${num}` in indikator) {
+      const valP = parseInt(indikator[`n${num}`] ?? 0);
+      flatVars[`n${num}`] = valP;
+      sumPaparan += valP;
+      
+      let kat = 'Kurang';
+      if (valP >= 81) kat = 'Sangat Baik';
+      else if (valP >= 71) kat = 'Baik';
+      else if (valP >= 60) kat = 'Cukup';
+      
+      flatVars[`k${num}`] = kat;
+    } else {
+      flatVars[`n${num}`] = '';
+      flatVars[`k${num}`] = '';
+    }
+  }
+  
+  if ('n1' in indikator) {
+    flatVars['rata'] = (sumPaparan / 7).toFixed(2);
+  } else {
+    flatVars['rata'] = '';
+  }
+
   // ── Render dokumen ─────────────────────────────────────────────────────────
   doc.render({
     JUDUL_PENILAIAN    : judulPenilaian,
@@ -91,8 +128,11 @@ export async function generateWordDoc(params) {
     UNIT_KERJA_PESERTA : unitKerja      || '-',
     NAMA_PANITIA_PENILAI: namaPanitia,
     
-    // Variabel array untuk me-loop baris tabel
+    // Variabel array untuk me-loop baris tabel (Opsi Loop)
     indikators         : indikatorArray,
+    
+    // Variabel flat untuk baris statis (Opsi Statis/Paparan)
+    ...flatVars,
     
     // Total jumlah
     jumlah             : jumlah ?? 0

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Contoh Tabel Word - Paparan</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 2rem;
+  }
+  th, td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: left;
+  }
+  th {
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<p><strong>CARA PENGGUNAAN (UNTUK PAPARAN / TABEL STATIS):</strong></p>
+<ol>
+  <li>Buka file HTML ini langsung menggunakan Microsoft Word (Klik Kanan filenya -> Open With -> Word), ATAU buka di browser lalu <strong>Copy</strong> tabel di bawah ini.</li>
+  <li><strong>Paste</strong> ke dalam file <code>template_paparan.docx</code> milik Bapak.</li>
+  <li>Sesuaikan font, warna, atau lebar kolom langsung di Microsoft Word sesuai selera Bapak. (Tag-tag <code>{n1}</code>, <code>{k1}</code> dsb jangan sampai terhapus).</li>
+</ol>
+
+<table class="table-penilaian">
+  <thead>
+    <tr>
+      <th style="width:50px; text-align:center;">No.</th>
+      <th style="text-align:center;">Variabel</th>
+      <th style="width:120px; text-align:center;">Nilai</th>
+      <th style="width:170px; text-align:center;">Kategori</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td style="text-align:center;">1</td>
+      <td>
+        <strong>Sikap Spiritual dalam Presentasi</strong><br>
+        Berdoa sebelum dan sesudah presentasi, mengucapkan salam,
+        serta mengucapkan rasa syukur kepada Tuhan.
+      </td>
+      <td style="text-align:center;">{n1}</td>
+      <td style="text-align:center;">{k1}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">2</td>
+      <td>
+        <strong>Kualitas dalam Penetapan Isu</strong><br>
+        Isu yang diangkat aktual dan berdampak bagi instansi maupun individu.
+      </td>
+      <td style="text-align:center;">{n2}</td>
+      <td style="text-align:center;">{k2}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">3</td>
+      <td>
+        <strong>Penguasaan Materi</strong>
+      </td>
+      <td style="text-align:center;">{n3}</td>
+      <td style="text-align:center;">{k3}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">4</td>
+      <td>
+        <strong>Penyampaian</strong><br>
+        Berbicara jelas, lugas, menarik, kontak mata, menggunakan pointer dengan baik.
+      </td>
+      <td style="text-align:center;">{n4}</td>
+      <td style="text-align:center;">{k4}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">5</td>
+      <td>
+        <strong>Diskusi</strong><br>
+        Kemampuan menjelaskan pemecahan masalah dan merespon pertanyaan.
+      </td>
+      <td style="text-align:center;">{n5}</td>
+      <td style="text-align:center;">{k5}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">6</td>
+      <td>
+        <strong>Penampilan</strong><br>
+        Menerapkan budaya 5S (Sapa, Salam, Senyum, Sopan, Santun).
+      </td>
+      <td style="text-align:center;">{n6}</td>
+      <td style="text-align:center;">{k6}</td>
+    </tr>
+
+    <tr>
+      <td style="text-align:center;">7</td>
+      <td>
+        <strong>Slides</strong><br>
+        Ringkas, menarik, mudah dibaca, dan memiliki kontras yang baik.
+      </td>
+      <td style="text-align:center;">{n7}</td>
+      <td style="text-align:center;">{k7}</td>
+    </tr>
+
+    <tr>
+      <th colspan="2" style="text-align:right">Jumlah Nilai / Rata-rata</th>
+      <th style="text-align:center;">{total}</th>
+      <th style="text-align:center;">{rata}</th>
+    </tr>
+  </tbody>
+</table>
+
+<table class="table-keterangan" style="width: 300px;">
+  <thead>
+    <tr>
+      <th colspan="2" style="text-align:center;">Keterangan Penilaian</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align:center;">81 - 100</td>
+      <td style="text-align:center;">Sangat Baik</td>
+    </tr>
+    <tr>
+      <td style="text-align:center;">71 - 80</td>
+      <td style="text-align:center;">Baik</td>
+    </tr>
+    <tr>
+      <td style="text-align:center;">60 - 70</td>
+      <td style="text-align:center;">Cukup</td>
+    </tr>
+    <tr>
+      <td style="text-align:center;">0 - 59</td>
+      <td style="text-align:center;">Kurang</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

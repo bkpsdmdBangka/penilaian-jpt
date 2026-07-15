@@ -6,7 +6,7 @@ import {
 import { db } from '../firebase';
 import AdminNavbar from '../components/AdminNavbar';
 
-const EMPTY_FORM = { nama: '', nip: '', unitKerja: '', linkMakalahDrive: '' };
+const EMPTY_FORM = { nama: '', nip: '', unitKerja: '', linkMakalahDrive: '', linkPaparanDrive: '' };
 
 function KandidatModal({ kandidat, onClose, onSave }) {
   const [form, setForm] = useState(kandidat || EMPTY_FORM);
@@ -96,6 +96,16 @@ function KandidatModal({ kandidat, onClose, onSave }) {
             <div className="form-hint">
               Pastikan file Google Drive dibagikan dengan akses "Anyone with the link – Viewer"
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Link Google Drive Paparan (Opsional)</label>
+            <input
+              className="form-input"
+              placeholder="https://drive.google.com/file/d/.../view"
+              value={form.linkPaparanDrive}
+              onChange={e => handleChange('linkPaparanDrive', e.target.value)}
+              id="input-kandidat-link-paparan"
+            />
           </div>
           {error && <div className="alert alert-error"><span className="alert-icon">⚠️</span>{error}</div>}
           <div className="flex gap-3" style={{ justifyContent: 'flex-end' }}>
@@ -191,6 +201,7 @@ export default function AdminKandidat({ user }) {
                     <th>NIP</th>
                     <th>Unit Kerja</th>
                     <th>Makalah</th>
+                    <th>Paparan</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
@@ -212,6 +223,20 @@ export default function AdminKandidat({ user }) {
                             className="btn btn-secondary btn-sm"
                           >
                             📄 Lihat
+                          </a>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: '0.8rem' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {k.linkPaparanDrive ? (
+                          <a
+                            href={k.linkPaparanDrive}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary btn-sm"
+                          >
+                            🎤 Lihat
                           </a>
                         ) : (
                           <span className="text-muted" style={{ fontSize: '0.8rem' }}>—</span>

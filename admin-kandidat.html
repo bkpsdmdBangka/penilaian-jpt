@@ -67,6 +67,14 @@
             </div>
           </div>
           
+          <div class="form-group">
+            <label class="form-label" for="linkPaparanDrive">Link Google Drive Paparan</label>
+            <input type="url" id="linkPaparanDrive" class="form-input" placeholder="https://drive.google.com/file/d/XXX/view?usp=sharing">
+            <div class="form-hint" style="margin-top: 0.25rem;">
+              Opsional. Untuk presentasi / paparan. Pastikan link memiliki akses <strong>"Anyone with the link - Viewer"</strong>.
+            </div>
+          </div>
+          
           <div id="formAlert" class="alert hidden mt-3"></div>
           
           <div class="flex gap-2 mt-4">
@@ -90,6 +98,7 @@
               <th>Kandidat</th>
               <th>NIP & Unit Kerja</th>
               <th>Makalah Drive</th>
+              <th>Paparan Drive</th>
               <th style="text-align: right;">Aksi</th>
             </tr>
           </thead>
@@ -165,6 +174,14 @@
               : `<span class="badge badge-warning">⚠️ Format Link Salah</span>`
             }
           </td>
+          <td>
+            ${k.linkPaparanDrive 
+              ? (k.linkPaparanDrive.match(/\/file\/d\/([^/]+)/) 
+                  ? `<a href="${k.linkPaparanDrive}" target="_blank" class="badge badge-primary" style="text-decoration:none">🔗 Valid Drive Link</a>`
+                  : `<span class="badge badge-warning">⚠️ Format Link Salah</span>`)
+              : `<span class="badge" style="background:#eee;color:#888;">—</span>`
+            }
+          </td>
           <td style="text-align: right; white-space: nowrap;">
             <button class="btn btn-secondary btn-sm btn-edit" data-id="${k.id}">✏️ Edit</button>
             <button class="btn btn-danger btn-sm btn-delete" data-id="${k.id}">🗑️ Hapus</button>
@@ -186,10 +203,16 @@
         nip: document.getElementById('nip').value.trim(),
         unitKerja: document.getElementById('unitKerja').value.trim(),
         linkMakalahDrive: document.getElementById('linkMakalahDrive').value.trim(),
+        linkPaparanDrive: document.getElementById('linkPaparanDrive').value.trim(),
       };
       
       if (!data.linkMakalahDrive.includes('/file/d/')) {
-        showAlert('Format link Google Drive salah. Harus mengandung /file/d/...', 'error');
+        showAlert('Format link Google Drive Makalah salah. Harus mengandung /file/d/...', 'error');
+        return;
+      }
+
+      if (data.linkPaparanDrive && !data.linkPaparanDrive.includes('/file/d/')) {
+        showAlert('Format link Google Drive Paparan salah. Harus mengandung /file/d/...', 'error');
         return;
       }
       
@@ -225,6 +248,7 @@
       document.getElementById('nip').value = k.nip || '';
       document.getElementById('unitKerja').value = k.unitKerja || '';
       document.getElementById('linkMakalahDrive').value = k.linkMakalahDrive || '';
+      document.getElementById('linkPaparanDrive').value = k.linkPaparanDrive || '';
       
       formTitle.textContent = 'Edit Kandidat';
       btnSave.innerHTML = '💾 Update Kandidat';

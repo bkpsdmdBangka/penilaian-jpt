@@ -223,21 +223,22 @@
     // INDIKATOR PENILAIAN PAPARAN & WAWANCARA
     // ──────────────────────────────────────────────
     const INDIKATOR = [
-      'Proporsi Halaman',
-      'Penggunaan Referensi dan Peraturan Perundang-undangan',
-      'Cakupan Strategi / Rencana Aksi',
-      'Proporsi Data yang digunakan',
-      'Usul Kelayakan Rekomendasi',
-      'Penyelesaian Makalah',
-      'Kelayakan Teknis Tulisan',
-      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+      { key: 'n1', label: 'Sikap Spiritual dalam Presentasi', desc: 'Berdoa sebelum dan sesudah presentasi, mengucapkan salam, serta mengucapkan rasa syukur kepada Tuhan.' },
+      { key: 'n2', label: 'Kualitas dalam Penetapan Isu', desc: 'Isu yang diangkat aktual dan berdampak bagi instansi maupun individu.' },
+      { key: 'n3', label: 'Penguasaan Materi', desc: '' },
+      { key: 'n4', label: 'Penyampaian', desc: 'Berbicara jelas, lugas, menarik, kontak mata, menggunakan pointer dengan baik.' },
+      { key: 'n5', label: 'Diskusi', desc: 'Kemampuan menjelaskan pemecahan masalah dan merespon pertanyaan.' },
+      { key: 'n6', label: 'Penampilan', desc: 'Menerapkan budaya 5S (Sapa, Salam, Senyum, Sopan, Santun).' },
+      { key: 'n7', label: 'Slides', desc: 'Ringkas, menarik, mudah dibaca, dan memiliki kontras yang baik.' }
     ];
 
-    const NILAI_OPTIONS = [
-      { value: 5, label: 'Sangat memadai' },
-      { value: 4, label: 'Memadai' },
-      { value: 2, label: 'Kurang memadai' },
-    ];
+    function getKategori(val) {
+      if (val === undefined || val === null || val === '') return '-';
+      if (val >= 81) return 'Sangat Baik';
+      if (val >= 71) return 'Baik';
+      if (val >= 60) return 'Cukup';
+      return 'Kurang';
+    }
 
     const JENIS_PENILAIAN = [
       { key: 'paparan', label: 'PENILAIAN PAPARAN MAKALAH DAN WAWANCARA' },
@@ -257,6 +258,12 @@
     const elError = document.getElementById('errorState');
     const elMain = document.getElementById('mainContent');
     const elKandidatList = document.getElementById('kandidatListContainer');
+
+    function extractDriveFileId(url) {
+      if (!url) return null;
+      const match = url.match(/\/file\/d\/([^/]+)/);
+      return match ? match[1] : null;
+    }
 
     async function loadData() {
       if (!token) {
@@ -397,6 +404,8 @@
       document.getElementById('modalKandidatInfo').textContent = `NIP: ${k.nip || '-'} | ${k.unitKerja || '-'}`;
 
       const isSelesai = sudahMenilai[k.id] === true;
+      const fileId = extractDriveFileId(k.linkPaparanDrive);
+      const previewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : null;
 
       let html = '';
 
@@ -425,30 +434,43 @@
       } else {
         html += `<form id="formPenilaianReal" onsubmit="submitPenilaian(event, '${k.id}', '${k.nama.replace(/'/g, "\\'")}')">`;
 
-        html += `<div style="margin-bottom: 2rem;">`;
-        INDIKATOR.forEach((label, idx) => {
-          const key = `i${idx + 1}`;
+        if (k.linkPaparanDrive) {
           html += `
-            <div class="indikator-row">
-              <div class="indikator-label">
-                <span class="indikator-num">${idx + 1}</span>
-                ${label}
+            <div class="pdf-preview-wrapper mb-6">
+              <div class="pdf-preview-header">
+                <span>🎤 Dokumen Paparan / Presentasi</span>
+                <a href="${k.linkPaparanDrive}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">🔗 Buka Full Tab</a>
               </div>
-              <div class="radio-group">
           `;
-          NILAI_OPTIONS.forEach(opt => {
-            const checked = localDrafts[k.id][key] === opt.value ? 'checked' : '';
-            html += `
-                <div class="radio-option score-${opt.value}">
-                  <input type="radio" id="${k.id}-${key}-${opt.value}" name="${k.id}-${key}" value="${opt.value}" required onchange="updateSkor('${k.id}', ${idx + 1}, ${opt.value})" ${checked}>
-                  <label for="${k.id}-${key}-${opt.value}">
-                    <span class="score-badge">${opt.value}</span>
-                    ${opt.label}
-                  </label>
-                </div>
-            `;
-          });
+          if (previewUrl) {
+            html += `<iframe src="${previewUrl}" class="pdf-preview-iframe" title="Paparan ${k.nama}"></iframe>`;
+          } else {
+            html += `<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">⚠️ Link tidak sesuai format Google Drive standar. Gunakan tombol Buka Full Tab di atas.</div>`;
+          }
+          html += `</div>`;
+        }
+
+        html += `<div style="margin-bottom: 2rem;">`;
+        INDIKATOR.forEach((ind, idx) => {
+          const val = localDrafts[k.id][ind.key] ?? '';
+          const kat = val !== '' ? getKategori(val) : '-';
+          
           html += `
+            <div class="indikator-row" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; padding: 1rem; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-md);">
+              <div style="font-weight: 600;">
+                <span class="indikator-num">${idx + 1}</span> ${ind.label}
+              </div>
+              ${ind.desc ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 2rem; margin-bottom: 0.5rem;">${ind.desc}</div>` : ''}
+              
+              <div style="display: flex; align-items: center; gap: 1rem; margin-left: 2rem;">
+                <div style="width: 100px;">
+                  <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Nilai (0-100)</label>
+                  <input type="number" id="${k.id}-${ind.key}" class="form-input" min="0" max="100" value="${val}" required onchange="updateSkor('${k.id}', '${ind.key}', this.value)" onkeyup="updateSkor('${k.id}', '${ind.key}', this.value)" style="text-align: center; font-weight: 600;">
+                </div>
+                <div>
+                  <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Kategori</label>
+                  <div id="kat-${k.id}-${ind.key}" class="badge ${kat === 'Sangat Baik' ? 'badge-success' : kat === 'Kurang' ? 'badge-danger' : 'badge-primary'}">${kat}</div>
+                </div>
               </div>
             </div>
           `;
@@ -458,8 +480,12 @@
         html += `
             <div class="score-summary sticky-bottom">
               <div class="score-item">
-                <div class="label">Total Skor</div>
-                <div class="value"><span id="total-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/40</span></div>
+                <div class="label">Total Skor (Max 700)</div>
+                <div class="value"><span id="total-${k.id}">0</span></div>
+              </div>
+              <div class="score-item">
+                <div class="label">Rata-rata (Max 100)</div>
+                <div class="value"><span id="rata-${k.id}">0.00</span></div>
               </div>
               <div class="score-item">
                 <div class="label">Nilai Paparan (30%)</div>
@@ -467,7 +493,7 @@
               </div>
               <div class="score-item">
                 <div class="label">Indikator Terisi</div>
-                <div class="value"><span id="count-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/8</span></div>
+                <div class="value"><span id="count-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/7</span></div>
               </div>
             </div>
 
@@ -496,16 +522,34 @@
     // ─────────────────────────────────────────────────────────────────
     // FUNGSI UPDATE SKOR
     // ─────────────────────────────────────────────────────────────────
-    window.updateSkor = function(kandidatId, index, value) {
-      if (index > 0 && value > 0) {
-        localDrafts[kandidatId][`i${index}`] = parseInt(value);
+    window.updateSkor = function(kandidatId, key, value) {
+      if (key) {
+        let valNum = parseInt(value);
+        if (isNaN(valNum)) valNum = 0;
+        if (valNum > 100) valNum = 100;
+        if (valNum < 0) valNum = 0;
+        
+        localDrafts[kandidatId][key] = valNum;
+        
+        const elInput = document.getElementById(`${kandidatId}-${key}`);
+        if (elInput && elInput.value !== valNum.toString() && value !== "") {
+           elInput.value = valNum;
+        }
+
+        const elKat = document.getElementById(`kat-${kandidatId}-${key}`);
+        if (elKat) {
+          const kat = getKategori(valNum);
+          elKat.textContent = value === "" ? "-" : kat;
+          elKat.className = `badge ${kat === 'Sangat Baik' ? 'badge-success' : kat === 'Kurang' ? 'badge-danger' : 'badge-primary'}`;
+        }
       }
 
       let sum = 0;
       let count = 0;
-      for (let i = 1; i <= 8; i++) {
-        if (localDrafts[kandidatId][`i${i}`]) {
-          sum += localDrafts[kandidatId][`i${i}`];
+      for (let i = 1; i <= 7; i++) {
+        const val = localDrafts[kandidatId][`n${i}`];
+        if (val !== undefined && val !== null && val !== "") {
+          sum += parseInt(val);
           count++;
         }
       }
@@ -513,12 +557,16 @@
       const elTotal = document.getElementById(`total-${kandidatId}`);
       if (elTotal) {
         elTotal.textContent = sum;
+        const rata = count > 0 ? (sum / count) : 0;
+        document.getElementById(`rata-${kandidatId}`).textContent = rata.toFixed(2);
         document.getElementById(`count-${kandidatId}`).textContent = count;
-        document.getElementById(`nilai30-${kandidatId}`).textContent = sum > 0 ? ((sum / 40) * 100 * 0.3).toFixed(2) : '0.00';
+        document.getElementById(`nilai30-${kandidatId}`).textContent = count > 0 ? (rata * 0.3).toFixed(2) : '0.00';
 
         const btn = document.getElementById(`btn-submit-${kandidatId}`);
-        if (count === 8) {
+        if (count === 7) {
           btn.disabled = false;
+        } else {
+          btn.disabled = true;
         }
       }
     };
@@ -529,8 +577,11 @@
     window.submitPenilaian = async function(e, kandidatId, kandidatNama) {
       e.preventDefault();
       const draft = localDrafts[kandidatId];
-      if (!draft || Object.keys(draft).length < 8) {
-        alert('Harap isi semua 8 indikator.');
+      let filledCount = 0;
+      for(let i=1; i<=7; i++) if (draft[`n${i}`] !== undefined && draft[`n${i}`] !== "") filledCount++;
+      
+      if (filledCount < 7) {
+        alert('Harap isi semua 7 indikator.');
         return;
       }
 
@@ -545,10 +596,11 @@
 
       try {
         let jumlah = 0;
-        for (let i = 1; i <= 8; i++) {
-          jumlah += draft[`i${i}`] || 0;
+        for (let i = 1; i <= 7; i++) {
+          jumlah += parseInt(draft[`n${i}`] || 0);
         }
-        const nilai30persen = parseFloat(((jumlah / 40) * 100 * 0.3).toFixed(2));
+        const rata = jumlah / 7;
+        const nilai30persen = parseFloat((rata * 0.3).toFixed(2));
 
         // Simpan ke koleksi penilaianPaparan
         await addDoc(collection(db, 'penilaianPaparan'), {
@@ -626,22 +678,20 @@
 
       // Build print table rows
       let tableRows = '';
-      INDIKATOR.forEach((label, idx) => {
+      INDIKATOR.forEach((ind, idx) => {
         const num = idx + 1;
-        const val = indikator[`i${num}`] || 0;
-        const checked5 = val === 5 ? '✓' : '';
-        const checked4 = val === 4 ? '✓' : '';
-        const checked2 = val === 2 ? '✓' : '';
+        const val = indikator[`n${num}`];
+        const kat = val !== undefined ? getKategori(val) : '-';
         tableRows += `
           <tr>
-            <td>${num}</td>
-            <td style="text-align:left;">${label}</td>
-            <td style="font-size:14pt; font-weight:bold;">${checked5}</td>
-            <td style="font-size:14pt; font-weight:bold;">${checked4}</td>
-            <td style="font-size:14pt; font-weight:bold;">${checked2}</td>
+            <td style="text-align:center;">${num}</td>
+            <td style="text-align:left;"><strong>${ind.label}</strong><br><span style="font-size:10pt;">${ind.desc}</span></td>
+            <td style="font-size:14pt; font-weight:bold; text-align:center;">${val !== undefined ? val : ''}</td>
+            <td style="font-size:12pt; font-weight:bold; text-align:center;">${kat}</td>
           </tr>
         `;
       });
+      const rata = (jumlah / 7).toFixed(2);
 
       const today = new Date();
       const tglStr = `${today.getDate()} ${['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][today.getMonth()]} ${today.getFullYear()}`;
@@ -670,21 +720,18 @@
         <table class="print-assessment-table">
           <thead>
             <tr>
-              <th rowspan="2" style="width:40px;">NO</th>
-              <th rowspan="2">INDIKATOR PENILAIAN</th>
-              <th colspan="3">NILAI</th>
-            </tr>
-            <tr>
-              <th style="width:110px;">Sangat Memadai (5)</th>
-              <th style="width:110px;">Memadai (4)</th>
-              <th style="width:110px;">Kurang Memadai (2)</th>
+              <th style="width:40px;">No.</th>
+              <th>Variabel</th>
+              <th style="width:100px;">Nilai</th>
+              <th style="width:120px;">Kategori</th>
             </tr>
           </thead>
           <tbody>
             ${tableRows}
             <tr>
-              <td colspan="2" style="font-weight:bold; text-align:center;">JUMLAH</td>
-              <td colspan="3" style="font-weight:bold;">${jumlah}</td>
+              <td colspan="2" style="font-weight:bold; text-align:right; padding-right:15px;">Jumlah Nilai / Rata-rata</td>
+              <td style="font-weight:bold; text-align:center; font-size:14pt;">${jumlah}</td>
+              <td style="font-weight:bold; text-align:center; font-size:14pt;">${rata}</td>
             </tr>
           </tbody>
         </table>
