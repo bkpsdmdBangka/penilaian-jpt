@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Penilaian Paparan - JPT Pratama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .hidden { display: none !important; }
+
+    .kandidat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .kandidat-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .kandidat-card:hover {
+      border-color: rgba(139,92,246,0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(139,92,246,0.2);
+    }
+
+    .kandidat-card.selesai {
+      opacity: 0.7;
+      border-color: rgba(16,185,129,0.2);
+    }
+    .kandidat-card.selesai:hover {
+      border-color: rgba(16,185,129,0.5);
+    }
+
+    /* Print styles */
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        background: #fff;
+        color: #000;
+        font-family: 'Times New Roman', serif;
+        font-size: 12pt;
+        padding: 20mm 25mm;
+      }
+      .print-header { margin-bottom: 20px; }
+      .print-title {
+        font-size: 14pt;
+        font-weight: bold;
+        text-align: center;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+        line-height: 1.4;
+      }
+      .print-info-table {
+        width: 100%;
+        margin-bottom: 16px;
+        border-collapse: collapse;
+      }
+      .print-info-table td {
+        padding: 3px 0;
+        font-size: 12pt;
+        vertical-align: top;
+      }
+      .print-info-table td:first-child { width: 180px; }
+      .print-info-table td:nth-child(2) { width: 16px; text-align: center; }
+      .print-assessment-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        margin-bottom: 20px;
+      }
+      .print-assessment-table th,
+      .print-assessment-table td {
+        border: 1px solid #000;
+        padding: 6px 8px;
+        font-size: 11pt;
+      }
+      .print-assessment-table th {
+        background: #ddd;
+        font-weight: bold;
+        text-align: center;
+      }
+      .print-assessment-table td:first-child { text-align: center; width: 40px; }
+      .print-assessment-table td:last-child { text-align: center; }
+      .print-sign-area {
+        margin-top: 30px;
+        text-align: right;
+      }
+      .print-sign-area p { margin-bottom: 50px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hidden print area -->
+  <div id="printArea" style="display:none;"></div>
+
+  <div id="loadingState" class="loading-center" style="min-height: 100vh">
+    <div class="spinner"></div>
+    <span>Memvalidasi token...</span>
+  </div>
+
+  <div id="invalidState" class="hidden" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="text-align: center; max-width: 400px;">
+      <div style="font-size: 4rem; margin-bottom: 1rem;">🔒</div>
+      <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--danger);">
+        Token Tidak Valid
+      </h1>
+      <p style="color: var(--text-secondary);">
+        Token yang Anda gunakan tidak ditemukan atau sudah tidak aktif.<br>
+        Hubungi panitia untuk mendapatkan link penilaian yang valid.
+      </p>
+    </div>
+  </div>
+
+  <div id="errorState" class="hidden loading-center" style="min-height: 100vh">
+    <div style="font-size: 3rem;">⚠️</div>
+    <h2>Terjadi Kesalahan</h2>
+    <p style="color: var(--text-secondary);" id="errorMessage">Gagal memuat data.</p>
+    <button class="btn btn-secondary" onclick="location.reload()">Coba Lagi</button>
+  </div>
+
+  <div id="mainContent" class="page-wrapper hidden">
+    <div class="container" style="max-width: 1000px;">
+      <div style="text-align: center; margin-bottom: 2.5rem;">
+        <div style="width: 72px; height: 72px; background: linear-gradient(135deg, #8b5cf6, #6d28d9); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 1rem; box-shadow: 0 8px 32px rgba(139,92,246,0.3);">
+          🎤
+        </div>
+        <h1 style="font-size: clamp(1.3rem, 3vw, 1.75rem); font-weight: 800; background: linear-gradient(135deg, #8b5cf6, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 0.5rem;">
+          Form Penilaian Paparan &amp; Wawancara
+        </h1>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+          Seleksi Terbuka Jabatan Pimpinan Tinggi Pratama
+        </p>
+      </div>
+
+      <div class="card mb-6" style="margin-bottom: 2rem; max-width: 760px; margin-left: auto; margin-right: auto;">
+        <div class="flex items-center gap-3">
+          <div style="width: 48px; height: 48px; background: rgba(139,92,246,0.15); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+            👨‍💼
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem;">Selamat datang, Penilai:</div>
+            <div id="namaPenilaiText" style="font-size: 1.1rem; font-weight: 700;">Memuat...</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem;">Progress</div>
+            <div id="progressText" style="font-size: 1.1rem; font-weight: 700; color: #a78bfa;">0/0</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">selesai</div>
+          </div>
+        </div>
+        <div style="margin-top: 1rem;" id="progressContainer">
+          <div style="height: 6px; background: var(--glass-border); border-radius: 999px; overflow: hidden;">
+            <div id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(135deg, #8b5cf6, #6d28d9); border-radius: 999px; transition: width 0.5s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="alertSelesai" class="alert alert-success mb-4 hidden" style="margin-bottom: 2rem; max-width: 760px; margin-left: auto; margin-right: auto;">
+        <span class="alert-icon">🎉</span>
+        <div>
+          <strong>Semua penilaian selesai!</strong>
+          <p style="font-size: 0.85rem; margin-top: 0.25rem;">
+            Terima kasih, seluruh kandidat telah Anda nilai. Hasil rekap tersedia di dashboard admin.
+          </p>
+        </div>
+      </div>
+
+      <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Daftar Kandidat:</h3>
+      <div id="kandidatListContainer" class="kandidat-grid"></div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">📭</div>
+        <h3>Tidak Ada Kandidat</h3>
+        <p>Belum ada kandidat yang ditugaskan untuk Anda nilai.</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 3rem; color: var(--text-muted); font-size: 0.8rem;">
+        Panitia Seleksi Terbuka JPT Pratama &copy; <span id="yearText"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PENILAIAN -->
+  <div id="formModal" class="modal-overlay hidden">
+    <div class="modal" style="max-width: 820px; padding: 0; display: flex; flex-direction: column; max-height: 95vh;">
+      <div class="modal-header" style="padding: 1.5rem 1.5rem 1rem; margin-bottom: 0; border-bottom: 1px solid var(--glass-border);">
+        <div>
+          <h2 id="modalKandidatName" style="font-size: 1.25rem;">Nama Kandidat</h2>
+          <p id="modalKandidatInfo" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;"></p>
+        </div>
+        <button class="modal-close" onclick="closeFormModal()">✕</button>
+      </div>
+
+      <div id="modalFormContainer" style="padding: 1.5rem; overflow-y: auto; flex: 1;">
+        <!-- Form injected here -->
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db } from './js/app.js';
+    import { collection, doc, getDoc, addDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+
+    document.getElementById('yearText').textContent = new Date().getFullYear();
+
+    // ──────────────────────────────────────────────
+    // INDIKATOR PENILAIAN PAPARAN & WAWANCARA
+    // ──────────────────────────────────────────────
+    const INDIKATOR = [
+      'Proporsi Halaman',
+      'Penggunaan Referensi dan Peraturan Perundang-undangan',
+      'Cakupan Strategi / Rencana Aksi',
+      'Proporsi Data yang digunakan',
+      'Usul Kelayakan Rekomendasi',
+      'Penyelesaian Makalah',
+      'Kelayakan Teknis Tulisan',
+      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+    ];
+
+    const NILAI_OPTIONS = [
+      { value: 5, label: 'Sangat memadai' },
+      { value: 4, label: 'Memadai' },
+      { value: 2, label: 'Kurang memadai' },
+    ];
+
+    const JENIS_PENILAIAN = [
+      { key: 'paparan', label: 'PENILAIAN PAPARAN MAKALAH DAN WAWANCARA' },
+      { key: 'penulisan', label: 'PENILAIAN PENULISAN MAKALAH' },
+    ];
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    let penilaiData = null;
+    let kandidatList = [];
+    let sudahMenilai = {};
+    let localDrafts = {};
+
+    const elLoading = document.getElementById('loadingState');
+    const elInvalid = document.getElementById('invalidState');
+    const elError = document.getElementById('errorState');
+    const elMain = document.getElementById('mainContent');
+    const elKandidatList = document.getElementById('kandidatListContainer');
+
+    async function loadData() {
+      if (!token) {
+        showState('invalid');
+        return;
+      }
+      try {
+        // Ambil dari koleksi penilaiPaparan
+        const penilaiRef = doc(db, 'penilaiPaparan', token);
+        const penilaiSnap = await getDoc(penilaiRef);
+
+        if (!penilaiSnap.exists()) {
+          showState('invalid');
+          return;
+        }
+
+        penilaiData = penilaiSnap.data();
+        sudahMenilai = penilaiData.sudahMenilai || {};
+
+        document.getElementById('namaPenilaiText').textContent = penilaiData.namaPenilai;
+
+        const assigned = penilaiData.assignedKandidat || [];
+        if (assigned.length === 0) {
+          kandidatList = [];
+          renderKandidatCards();
+          updateProgress();
+          showState('main');
+          return;
+        }
+
+        const kandidatDocs = await Promise.all(
+          assigned.map(id => getDoc(doc(db, 'kandidat', id)))
+        );
+
+        kandidatList = kandidatDocs
+          .filter(s => s.exists())
+          .map(s => ({ id: s.id, ...s.data() }));
+
+        renderKandidatCards();
+        updateProgress();
+        showState('main');
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('errorMessage').textContent = err.message || 'Gagal memuat data.';
+        showState('error');
+      }
+    }
+
+    function showState(state) {
+      elLoading.classList.add('hidden');
+      elInvalid.classList.add('hidden');
+      elError.classList.add('hidden');
+      elMain.classList.add('hidden');
+
+      if (state === 'loading') elLoading.classList.remove('hidden');
+      else if (state === 'invalid') elInvalid.classList.remove('hidden');
+      else if (state === 'error') elError.classList.remove('hidden');
+      else if (state === 'main') {
+        elMain.classList.remove('hidden');
+        elMain.style.display = 'block';
+      }
+    }
+
+    function updateProgress() {
+      const totalAssigned = kandidatList.length;
+      const totalSelesai = Object.values(sudahMenilai).filter(Boolean).length;
+
+      const pText = document.getElementById('progressText');
+      pText.textContent = `${totalSelesai}/${totalAssigned}`;
+
+      if (totalSelesai === totalAssigned && totalAssigned > 0) {
+        pText.style.color = '#34d399';
+        document.getElementById('alertSelesai').classList.remove('hidden');
+      }
+
+      const pBar = document.getElementById('progressBar');
+      if (totalAssigned > 0) {
+        pBar.style.width = `${(totalSelesai / totalAssigned) * 100}%`;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // RENDER CARDS
+    // ─────────────────────────────────────────────────────────────────
+    function renderKandidatCards() {
+      if (kandidatList.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        elKandidatList.innerHTML = '';
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+
+      let html = '';
+
+      kandidatList.forEach((k, idx) => {
+        const isSelesai = sudahMenilai[k.id] === true;
+
+        if (!localDrafts[k.id]) localDrafts[k.id] = {};
+
+        html += `
+          <div class="kandidat-card ${isSelesai ? 'selesai' : ''} animate-slide-up" style="animation-delay: ${idx * 0.05}s" onclick="openFormModal('${k.id}')">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, #8b5cf6, #6d28d9); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
+                🎤
+              </div>
+              <div style="text-align: right;">
+                ${isSelesai
+                  ? `<span class="badge badge-success" style="font-size: 0.7rem;">✅ Selesai</span>`
+                  : `<span class="badge badge-warning" style="font-size: 0.7rem;">⏳ Belum Dinilai</span>`
+                }
+              </div>
+            </div>
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.25rem;">${k.nama}</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary);">${k.nip || '—'} <br> ${k.unitKerja || '—'}</p>
+            </div>
+            <div style="margin-top: auto;">
+              <button class="btn btn-sm btn-block" style="pointer-events: none; background: ${isSelesai ? 'var(--glass-bg)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)'}; color: ${isSelesai ? 'var(--text-secondary)' : '#fff'}; border: 1px solid ${isSelesai ? 'var(--glass-border)' : 'transparent'};">
+                ${isSelesai ? '🔍 Lihat Status' : '🎤 Buka Penilaian'}
+              </button>
+            </div>
+          </div>
+        `;
+      });
+
+      elKandidatList.innerHTML = html;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // MODAL FORM
+    // ─────────────────────────────────────────────────────────────────
+    window.openFormModal = function(kandidatId) {
+      const k = kandidatList.find(x => x.id === kandidatId);
+      if (!k) return;
+
+      document.getElementById('modalKandidatName').textContent = k.nama;
+      document.getElementById('modalKandidatInfo').textContent = `NIP: ${k.nip || '-'} | ${k.unitKerja || '-'}`;
+
+      const isSelesai = sudahMenilai[k.id] === true;
+
+      let html = '';
+
+      if (isSelesai) {
+        // Tampilkan status selesai dengan tombol cetak
+        const penilaianData = localDrafts[k.id]._savedData || null;
+        html += `
+          <div class="alert alert-success" style="margin-bottom: 1.5rem;">
+            <span class="alert-icon">✅</span>
+            <div>
+              <strong>Penilaian telah tersimpan.</strong>
+              <p style="margin-top: 0.25rem; font-size: 0.85rem;">
+                Anda tidak dapat mengubah penilaian yang sudah dikirim ke sistem.
+              </p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
+            <button class="btn btn-sm" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none;" onclick="cetakLembar('${k.id}', '${k.nama.replace(/'/g, "\\'")}', 'paparan')">
+              🖨️ Cetak Lembar Paparan & Wawancara
+            </button>
+            <button class="btn btn-sm" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border: none;" onclick="cetakLembar('${k.id}', '${k.nama.replace(/'/g, "\\'")}', 'penulisan')">
+              🖨️ Cetak Lembar Penulisan Makalah
+            </button>
+          </div>
+        `;
+      } else {
+        html += `<form id="formPenilaianReal" onsubmit="submitPenilaian(event, '${k.id}', '${k.nama.replace(/'/g, "\\'")}')">`;
+
+        html += `<div style="margin-bottom: 2rem;">`;
+        INDIKATOR.forEach((label, idx) => {
+          const key = `i${idx + 1}`;
+          html += `
+            <div class="indikator-row">
+              <div class="indikator-label">
+                <span class="indikator-num">${idx + 1}</span>
+                ${label}
+              </div>
+              <div class="radio-group">
+          `;
+          NILAI_OPTIONS.forEach(opt => {
+            const checked = localDrafts[k.id][key] === opt.value ? 'checked' : '';
+            html += `
+                <div class="radio-option score-${opt.value}">
+                  <input type="radio" id="${k.id}-${key}-${opt.value}" name="${k.id}-${key}" value="${opt.value}" required onchange="updateSkor('${k.id}', ${idx + 1}, ${opt.value})" ${checked}>
+                  <label for="${k.id}-${key}-${opt.value}">
+                    <span class="score-badge">${opt.value}</span>
+                    ${opt.label}
+                  </label>
+                </div>
+            `;
+          });
+          html += `
+              </div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+
+        html += `
+            <div class="score-summary sticky-bottom">
+              <div class="score-item">
+                <div class="label">Total Skor</div>
+                <div class="value"><span id="total-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/40</span></div>
+              </div>
+              <div class="score-item">
+                <div class="label">Nilai Paparan (30%)</div>
+                <div class="value" id="nilai30-${k.id}">0.00</div>
+              </div>
+              <div class="score-item">
+                <div class="label">Indikator Terisi</div>
+                <div class="value"><span id="count-${k.id}">0</span><span style="font-size: 0.9rem; opacity: 0.5;">/8</span></div>
+              </div>
+            </div>
+
+            <div id="error-${k.id}" class="alert alert-error mt-3 hidden"></div>
+
+            <button type="submit" id="btn-submit-${k.id}" class="btn btn-lg btn-block mt-4" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none;" disabled>
+              💾 Kirim Penilaian
+            </button>
+          </form>
+        `;
+      }
+
+      document.getElementById('modalFormContainer').innerHTML = html;
+      document.getElementById('formModal').classList.remove('hidden');
+
+      if (!isSelesai) {
+        updateSkor(k.id, 0, 0);
+      }
+    };
+
+    window.closeFormModal = function() {
+      document.getElementById('formModal').classList.add('hidden');
+      document.getElementById('modalFormContainer').innerHTML = '';
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // FUNGSI UPDATE SKOR
+    // ─────────────────────────────────────────────────────────────────
+    window.updateSkor = function(kandidatId, index, value) {
+      if (index > 0 && value > 0) {
+        localDrafts[kandidatId][`i${index}`] = parseInt(value);
+      }
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 1; i <= 8; i++) {
+        if (localDrafts[kandidatId][`i${i}`]) {
+          sum += localDrafts[kandidatId][`i${i}`];
+          count++;
+        }
+      }
+
+      const elTotal = document.getElementById(`total-${kandidatId}`);
+      if (elTotal) {
+        elTotal.textContent = sum;
+        document.getElementById(`count-${kandidatId}`).textContent = count;
+        document.getElementById(`nilai30-${kandidatId}`).textContent = sum > 0 ? ((sum / 40) * 100 * 0.3).toFixed(2) : '0.00';
+
+        const btn = document.getElementById(`btn-submit-${kandidatId}`);
+        if (count === 8) {
+          btn.disabled = false;
+        }
+      }
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // FUNGSI SUBMIT
+    // ─────────────────────────────────────────────────────────────────
+    window.submitPenilaian = async function(e, kandidatId, kandidatNama) {
+      e.preventDefault();
+      const draft = localDrafts[kandidatId];
+      if (!draft || Object.keys(draft).length < 8) {
+        alert('Harap isi semua 8 indikator.');
+        return;
+      }
+
+      const btn = document.getElementById(`btn-submit-${kandidatId}`);
+      const errorDiv = document.getElementById(`error-${kandidatId}`);
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner spinner-sm"></div> Mengirim...';
+      }
+      if (errorDiv) errorDiv.classList.add('hidden');
+
+      try {
+        let jumlah = 0;
+        for (let i = 1; i <= 8; i++) {
+          jumlah += draft[`i${i}`] || 0;
+        }
+        const nilai30persen = parseFloat(((jumlah / 40) * 100 * 0.3).toFixed(2));
+
+        // Simpan ke koleksi penilaianPaparan
+        await addDoc(collection(db, 'penilaianPaparan'), {
+          token,
+          kandidatId,
+          indikator: draft,
+          jumlah,
+          nilai30persen,
+          createdAt: serverTimestamp()
+        });
+
+        // Update status sudahMenilai di dokumen penilaiPaparan
+        await updateDoc(doc(db, 'penilaiPaparan', token), {
+          [`sudahMenilai.${kandidatId}`]: true
+        });
+
+        // Simpan data lokal untuk keperluan cetak
+        localDrafts[kandidatId]._savedData = {
+          indikator: { ...draft },
+          jumlah,
+          nilai30persen,
+          namaPenilai: penilaiData.namaPenilai
+        };
+
+        sudahMenilai[kandidatId] = true;
+        closeFormModal();
+        renderKandidatCards();
+        updateProgress();
+
+      } catch (err) {
+        console.error(err);
+        if (errorDiv) {
+          errorDiv.textContent = err.message || 'Terjadi kesalahan jaringan.';
+          errorDiv.classList.remove('hidden');
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `💾 Kirim Penilaian`;
+        }
+      }
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // FUNGSI CETAK LEMBAR PENILAIAN
+    // ─────────────────────────────────────────────────────────────────
+    window.cetakLembar = async function(kandidatId, kandidatNama, jenisKey) {
+      const k = kandidatList.find(x => x.id === kandidatId);
+      if (!k) return;
+
+      const jenis = JENIS_PENILAIAN.find(j => j.key === jenisKey);
+      if (!jenis) return;
+
+      // Ambil data penilaian dari Firestore
+      let penilaianData = null;
+      try {
+        const { query, collection: col, where, getDocs } = await import('https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js');
+        const q = query(col(db, 'penilaianPaparan'), where('kandidatId', '==', kandidatId), where('token', '==', token));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          penilaianData = snap.docs[0].data();
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Gagal mengambil data penilaian untuk dicetak.');
+        return;
+      }
+
+      if (!penilaianData) {
+        alert('Data penilaian tidak ditemukan.');
+        return;
+      }
+
+      const indikator = penilaianData.indikator || {};
+      const jumlah = penilaianData.jumlah || 0;
+
+      // Build print table rows
+      let tableRows = '';
+      INDIKATOR.forEach((label, idx) => {
+        const num = idx + 1;
+        const val = indikator[`i${num}`] || 0;
+        const checked5 = val === 5 ? '✓' : '';
+        const checked4 = val === 4 ? '✓' : '';
+        const checked2 = val === 2 ? '✓' : '';
+        tableRows += `
+          <tr>
+            <td>${num}</td>
+            <td style="text-align:left;">${label}</td>
+            <td style="font-size:14pt; font-weight:bold;">${checked5}</td>
+            <td style="font-size:14pt; font-weight:bold;">${checked4}</td>
+            <td style="font-size:14pt; font-weight:bold;">${checked2}</td>
+          </tr>
+        `;
+      });
+
+      const today = new Date();
+      const tglStr = `${today.getDate()} ${['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][today.getMonth()]} ${today.getFullYear()}`;
+
+      const printContent = `
+        <div class="print-header">
+          <div class="print-title">${jenis.label}</div>
+          <table class="print-info-table">
+            <tr>
+              <td>Nama Peserta</td>
+              <td>:</td>
+              <td><strong>${k.nama}</strong></td>
+            </tr>
+            <tr>
+              <td>NIP</td>
+              <td>:</td>
+              <td>${k.nip || '-'}</td>
+            </tr>
+            <tr>
+              <td>Unit Kerja</td>
+              <td>:</td>
+              <td>${k.unitKerja || '-'}</td>
+            </tr>
+          </table>
+        </div>
+        <table class="print-assessment-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:40px;">NO</th>
+              <th rowspan="2">INDIKATOR PENILAIAN</th>
+              <th colspan="3">NILAI</th>
+            </tr>
+            <tr>
+              <th style="width:110px;">Sangat Memadai (5)</th>
+              <th style="width:110px;">Memadai (4)</th>
+              <th style="width:110px;">Kurang Memadai (2)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr>
+              <td colspan="2" style="font-weight:bold; text-align:center;">JUMLAH</td>
+              <td colspan="3" style="font-weight:bold;">${jumlah}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="print-sign-area">
+          <p>Bangka, ${tglStr}</p>
+          <p>Panitia Penilai,</p>
+          <br><br><br>
+          <p><strong>${penilaiData.namaPenilai}</strong></p>
+        </div>
+      `;
+
+      const printArea = document.getElementById('printArea');
+      printArea.innerHTML = printContent;
+      printArea.style.display = 'block';
+
+      window.print();
+
+      setTimeout(() => {
+        printArea.style.display = 'none';
+        printArea.innerHTML = '';
+      }, 1000);
+    };
+
+    // Start
+    loadData();
+  </script>
+</body>
+</html>

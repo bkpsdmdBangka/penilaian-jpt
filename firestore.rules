@@ -43,6 +43,27 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // ─── penilaiPaparan/{token} ──────────────────────────────────
+    // Koleksi token penilai untuk penilaian paparan & wawancara
+    match /penilaiPaparan/{token} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+
+      // Penilai boleh update field 'sudahMenilai' saja
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sudahMenilai'])
+      );
+    }
+
+    // ─── penilaianPaparan/{id} ───────────────────────────────────
+    // Submit hasil penilaian paparan dari client
+    match /penilaianPaparan/{id} {
+      allow read, update, delete: if isAdmin();
+      // Mengizinkan penilai membuat dokumen penilaian paparan baru
+      allow create: if request.resource.data.keys().hasAll(['token', 'kandidatId', 'jumlah', 'nilai30persen', 'createdAt']);
+    }
+
     // ─── Default ──────────────────────
     match /{document=**} {
       allow read, write: if false;

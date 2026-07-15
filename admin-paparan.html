@@ -3,24 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard Admin - JPT Pratama</title>
+  <title>Dashboard Penilaian Paparan - JPT Pratama</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <style>
     .hidden { display: none !important; }
+
+    /* Purple accent overrides for paparan theme */
+    .paparan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(139,92,246,0.15);
+      color: #a78bfa;
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+
+    /* Print area */
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        background: #fff;
+        color: #000;
+        font-family: 'Times New Roman', serif;
+        font-size: 12pt;
+        padding: 20mm 25mm;
+      }
+      .print-title {
+        font-size: 14pt;
+        font-weight: bold;
+        text-align: center;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+        line-height: 1.4;
+      }
+      .print-info-table {
+        width: 100%;
+        margin-bottom: 16px;
+        border-collapse: collapse;
+      }
+      .print-info-table td {
+        padding: 3px 0;
+        font-size: 12pt;
+        vertical-align: top;
+      }
+      .print-info-table td:first-child { width: 180px; }
+      .print-info-table td:nth-child(2) { width: 16px; text-align: center; }
+      .print-assessment-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        margin-bottom: 20px;
+      }
+      .print-assessment-table th,
+      .print-assessment-table td {
+        border: 1px solid #000;
+        padding: 6px 8px;
+        font-size: 11pt;
+      }
+      .print-assessment-table th {
+        background: #ddd;
+        font-weight: bold;
+        text-align: center;
+      }
+      .print-assessment-table td:first-child { text-align: center; width: 40px; }
+      .print-assessment-table td.check-cell { text-align: center; font-size: 14pt; font-weight: bold; }
+      .print-sign-area {
+        margin-top: 30px;
+        text-align: right;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Hidden print area -->
+  <div id="printArea" style="display:none;"></div>
 
   <!-- NAVBAR ADMIN -->
   <nav class="navbar">
     <a href="admin-dashboard.html" class="navbar-brand">
       <span class="brand-icon">📋</span>
-      <span>Penilaian Makalah</span>
+      <span>JPT Pratama</span>
     </a>
     <ul class="navbar-nav">
-      <li><a href="admin-dashboard.html" class="nav-link active">📊 Makalah</a></li>
-      <li><a href="admin-paparan.html" class="nav-link">🎤 Paparan</a></li>
+      <li><a href="admin-dashboard.html" class="nav-link">📊 Makalah</a></li>
+      <li><a href="admin-paparan.html" class="nav-link active">🎤 Paparan</a></li>
       <li><a href="admin-kandidat.html" class="nav-link">👤 Kandidat</a></li>
       <li><a href="admin-penilai.html" class="nav-link">🗝️ Penilai Makalah</a></li>
       <li><a href="admin-penilai-paparan.html" class="nav-link">🗝️ Penilai Paparan</a></li>
@@ -31,8 +107,13 @@
   <div class="page-wrapper">
     <div class="container">
       <div class="page-header">
-        <h1>Dashboard Rekap Penilaian</h1>
-        <p>Pantau progres dan hasil penilaian makalah seluruh kandidat</p>
+        <h1>📊 Dashboard Rekap Penilaian Paparan</h1>
+        <p>Pantau progres dan hasil penilaian paparan & wawancara seluruh kandidat</p>
+      </div>
+
+      <!-- Purple accent tag -->
+      <div style="margin-bottom: 1.5rem;">
+        <span class="paparan-badge">🎤 Penilaian Paparan &amp; Wawancara</span>
       </div>
 
       <div class="stats-grid">
@@ -41,7 +122,7 @@
           <div class="stat-value" id="statKandidat">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Penilai</div>
+          <div class="stat-label">Total Penilai Paparan</div>
           <div class="stat-value" id="statPenilai">0</div>
         </div>
         <div class="stat-card">
@@ -55,7 +136,7 @@
       </div>
 
       <div class="flex gap-3 mb-6" style="flex-wrap: wrap;">
-        <button class="btn btn-success" id="btnExport">📥 Export CSV</button>
+        <button class="btn" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none;" id="btnExport">📥 Export CSV</button>
         <button class="btn btn-secondary" id="btnRefresh">🔄 Refresh</button>
       </div>
 
@@ -80,7 +161,7 @@
               <th>Unit Kerja</th>
               <th>Penilai Selesai</th>
               <th>Jumlah Nilai Rata-Rata / Persentase (%)</th>
-              <th>Rata-rata Nilai (20%)</th>
+              <th>Rata-rata Nilai (30%)</th>
               <th>Aksi</th>
             </tr>
           </thead>
@@ -93,9 +174,9 @@
 
   <!-- Detail Modal -->
   <div id="detailModal" class="modal-overlay hidden">
-    <div class="modal">
+    <div class="modal" style="max-width: 700px;">
       <div class="modal-header">
-        <h2>📊 Detail Penilaian</h2>
+        <h2>🎤 Detail Penilaian Paparan</h2>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <div style="margin-bottom: 1.5rem;">
@@ -105,8 +186,8 @@
           <div class="badge badge-secondary">
             Jumlah Nilai / Persen: <strong id="modalJumlahPersen" style="margin-left: 0.25rem;"></strong>
           </div>
-          <div class="badge badge-primary">
-            Rata-rata Nilai (20%): <strong id="modalRata" style="margin-left: 0.25rem;"></strong>
+          <div class="paparan-badge">
+            Rata-rata Nilai (30%): <strong id="modalRata" style="margin-left: 0.25rem;"></strong>
           </div>
         </div>
       </div>
@@ -120,7 +201,8 @@
             <tr>
               <th>Penilai</th>
               <th>Total Skor</th>
-              <th>Nilai (20%)</th>
+              <th>Nilai (30%)</th>
+              <th>Aksi Cetak</th>
             </tr>
           </thead>
           <tbody id="modalTbody"></tbody>
@@ -132,7 +214,23 @@
   <script type="module">
     import { auth, db } from './js/app.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
-    import { collection, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+    import { collection, getDocs, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+
+    const INDIKATOR = [
+      'Proporsi Halaman',
+      'Penggunaan Referensi dan Peraturan Perundang-undangan',
+      'Cakupan Strategi / Rencana Aksi',
+      'Proporsi Data yang digunakan',
+      'Usul Kelayakan Rekomendasi',
+      'Penyelesaian Makalah',
+      'Kelayakan Teknis Tulisan',
+      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+    ];
+
+    const JENIS_PENILAIAN = [
+      { key: 'paparan', label: 'PENILAIAN PAPARAN MAKALAH DAN WAWANCARA' },
+      { key: 'penulisan', label: 'PENILAIAN PENULISAN MAKALAH' },
+    ];
 
     // Auth Check
     onAuthStateChanged(auth, (user) => {
@@ -161,14 +259,14 @@
       try {
         const [kSnap, pSnap, jSnap] = await Promise.all([
           getDocs(query(collection(db, 'kandidat'), orderBy('nama'))),
-          getDocs(collection(db, 'penilaian')),
-          getDocs(collection(db, 'penilai'))
+          getDocs(collection(db, 'penilaianPaparan')),
+          getDocs(collection(db, 'penilaiPaparan'))
         ]);
 
         g_kandidat = kSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         g_penilaian = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         g_penilai = jSnap.docs.map(d => ({ token: d.id, ...d.data() }));
-        
+
         g_penilaiMap = {};
         g_penilai.forEach(p => { g_penilaiMap[p.token] = p.namaPenilai; });
 
@@ -176,7 +274,7 @@
         renderTable();
       } catch (err) {
         console.error(err);
-        alert('Gagal memuat data dashboard.');
+        alert('Gagal memuat data dashboard paparan.');
       } finally {
         document.getElementById('loadingState').classList.add('hidden');
       }
@@ -188,7 +286,7 @@
       document.getElementById('statKandidat').textContent = g_kandidat.length;
       document.getElementById('statPenilai').textContent = g_penilai.length;
       document.getElementById('statPenilaian').textContent = g_penilaian.length;
-      
+
       const totalSelesai = g_penilai.reduce((sum, p) => sum + Object.values(p.sudahMenilai || {}).filter(Boolean).length, 0);
       document.getElementById('statSelesai').textContent = totalSelesai;
     }
@@ -206,12 +304,12 @@
       g_kandidat.forEach((k, i) => {
         const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
         const count = penilaians.length;
-        
-        let rata20 = '—';
+
+        let rata30 = '—';
         let rataJumlahPersen = '—';
-        
+
         if (count > 0) {
-          rata20 = (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / count).toFixed(2);
+          rata30 = (penilaians.reduce((s, p) => s + (p.nilai30persen || 0), 0) / count).toFixed(2);
           const sumJumlah = penilaians.reduce((s, p) => s + (p.jumlah || 0), 0);
           const avgJumlah = sumJumlah / count;
           const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
@@ -225,7 +323,7 @@
           <td style="color: var(--text-secondary); font-family: monospace;">${k.nip || '—'}</td>
           <td style="color: var(--text-secondary); font-size: 0.85rem;">${k.unitKerja || '—'}</td>
           <td>
-            ${count > 0 
+            ${count > 0
               ? `<span class="badge badge-success">${count} penilai</span>`
               : `<span class="badge badge-secondary">Belum ada</span>`
             }
@@ -234,7 +332,7 @@
             <strong class="text-secondary">${rataJumlahPersen}</strong>
           </td>
           <td>
-            <strong class="${count > 0 ? 'text-primary-color' : 'text-muted'}">${rata20}</strong>
+            <strong class="${count > 0 ? '' : 'text-muted'}" style="${count > 0 ? 'color:#a78bfa;' : ''}">${rata30}</strong>
           </td>
           <td>
             <button class="btn btn-secondary btn-sm btn-detail" data-id="${k.id}">🔍 Detail</button>
@@ -256,7 +354,11 @@
       document.getElementById('detailModal').classList.add('hidden');
     }
 
+    // Simpan kandidat aktif untuk cetak
+    let _currentKandidat = null;
+
     function openDetailModal(kandidat) {
+      _currentKandidat = kandidat;
       document.getElementById('modalNama').textContent = kandidat.nama;
       let info = [];
       if (kandidat.nip) info.push(`NIP: ${kandidat.nip}`);
@@ -264,19 +366,19 @@
       document.getElementById('modalInfo').textContent = info.join(' | ');
 
       const penilaians = g_penilaian.filter(p => p.kandidatId === kandidat.id);
-      
-      let rataRata20 = '0.00';
+
+      let rataRata30 = '0.00';
       let rataJumlahPersenModal = '0.00 / 0%';
 
       if (penilaians.length > 0) {
-        rataRata20 = (penilaians.reduce((s, p) => s + (p.nilai20persen || 0), 0) / penilaians.length).toFixed(2);
+        rataRata30 = (penilaians.reduce((s, p) => s + (p.nilai30persen || 0), 0) / penilaians.length).toFixed(2);
         const sumJumlah = penilaians.reduce((s, p) => s + (p.jumlah || 0), 0);
         const avgJumlah = sumJumlah / penilaians.length;
         const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
         rataJumlahPersenModal = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
       }
-      
-      document.getElementById('modalRata').textContent = rataRata20;
+
+      document.getElementById('modalRata').textContent = rataRata30;
       document.getElementById('modalJumlahPersen').textContent = rataJumlahPersenModal;
 
       const tbody = document.getElementById('modalTbody');
@@ -288,13 +390,24 @@
       } else {
         document.getElementById('modalEmpty').classList.add('hidden');
         document.getElementById('modalTableContainer').classList.remove('hidden');
-        
+
         penilaians.forEach(p => {
+          const namaPenilai = g_penilaiMap[p.token] || p.token;
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>${g_penilaiMap[p.token] || p.token}</td>
+            <td>${namaPenilai}</td>
             <td><strong>${p.jumlah}</strong>/40</td>
-            <td><strong class="text-primary-color">${p.nilai20persen?.toFixed(2)}</strong></td>
+            <td><strong style="color:#a78bfa;">${p.nilai30persen?.toFixed(2)}</strong></td>
+            <td>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <button class="btn btn-sm" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;font-size:0.75rem;" onclick="cetakFromAdmin('${kandidat.id}', '${kandidat.nama.replace(/'/g,"\\'")}', '${kandidat.nip || ''}', '${(kandidat.unitKerja||'').replace(/'/g,"\\'")}', '${p.token}', '${namaPenilai.replace(/'/g,"\\'")}', 'paparan')">
+                  🖨️ Paparan
+                </button>
+                <button class="btn btn-sm" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border:none;font-size:0.75rem;" onclick="cetakFromAdmin('${kandidat.id}', '${kandidat.nama.replace(/'/g,"\\'")}', '${kandidat.nip || ''}', '${(kandidat.unitKerja||'').replace(/'/g,"\\'")}', '${p.token}', '${namaPenilai.replace(/'/g,"\\'")}', 'penulisan')">
+                  🖨️ Penulisan
+                </button>
+              </div>
+            </td>
           `;
           tbody.appendChild(tr);
         });
@@ -303,49 +416,144 @@
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // CETAK DARI ADMIN
+    // ─────────────────────────────────────────────────────────────────
+    window.cetakFromAdmin = async function(kandidatId, kandidatNama, kandidatNip, kandidatUnit, penilaiToken, namaPenilai, jenisKey) {
+      const jenis = JENIS_PENILAIAN.find(j => j.key === jenisKey);
+      if (!jenis) return;
+
+      // Cari data penilaian
+      const penilaianItem = g_penilaian.find(p => p.kandidatId === kandidatId && p.token === penilaiToken);
+      if (!penilaianItem) {
+        alert('Data penilaian tidak ditemukan.');
+        return;
+      }
+
+      const indikator = penilaianItem.indikator || {};
+      const jumlah = penilaianItem.jumlah || 0;
+
+      let tableRows = '';
+      INDIKATOR.forEach((label, idx) => {
+        const num = idx + 1;
+        const val = indikator[`i${num}`] || 0;
+        const checked5 = val === 5 ? '✓' : '';
+        const checked4 = val === 4 ? '✓' : '';
+        const checked2 = val === 2 ? '✓' : '';
+        tableRows += `
+          <tr>
+            <td>${num}</td>
+            <td style="text-align:left;">${label}</td>
+            <td class="check-cell">${checked5}</td>
+            <td class="check-cell">${checked4}</td>
+            <td class="check-cell">${checked2}</td>
+          </tr>
+        `;
+      });
+
+      const today = new Date();
+      const tglStr = `${today.getDate()} ${['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][today.getMonth()]} ${today.getFullYear()}`;
+
+      const printContent = `
+        <div class="print-title">${jenis.label}</div>
+        <table class="print-info-table">
+          <tr>
+            <td>Nama Peserta</td>
+            <td>:</td>
+            <td><strong>${kandidatNama}</strong></td>
+          </tr>
+          <tr>
+            <td>NIP</td>
+            <td>:</td>
+            <td>${kandidatNip || '-'}</td>
+          </tr>
+          <tr>
+            <td>Unit Kerja</td>
+            <td>:</td>
+            <td>${kandidatUnit || '-'}</td>
+          </tr>
+        </table>
+        <table class="print-assessment-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:40px;">NO</th>
+              <th rowspan="2">INDIKATOR PENILAIAN</th>
+              <th colspan="3">NILAI</th>
+            </tr>
+            <tr>
+              <th style="width:110px;">Sangat Memadai (5)</th>
+              <th style="width:110px;">Memadai (4)</th>
+              <th style="width:110px;">Kurang Memadai (2)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr>
+              <td colspan="2" style="font-weight:bold; text-align:center;">JUMLAH</td>
+              <td colspan="3" style="font-weight:bold;">${jumlah}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="print-sign-area">
+          <p>Bangka, ${tglStr}</p>
+          <p>Panitia Penilai,</p>
+          <br><br><br>
+          <p><strong>${namaPenilai}</strong></p>
+        </div>
+      `;
+
+      const printArea = document.getElementById('printArea');
+      printArea.innerHTML = printContent;
+      printArea.style.display = 'block';
+
+      window.print();
+
+      setTimeout(() => {
+        printArea.style.display = 'none';
+        printArea.innerHTML = '';
+      }, 1000);
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // EXPORT CSV
+    // ─────────────────────────────────────────────────────────────────
     document.getElementById('btnExport').addEventListener('click', () => {
       const rows = [];
-      
-      // Ambil daftar penilai dan balik urutannya (ASC / yang pertama dibuat ada di kiri)
-      // Karena saat fetch kita pakai orderBy('createdAt', 'desc'), maka reverse() akan jadi ASC
+
       const sortedPenilai = [...g_penilai].reverse();
       const maxPenilai = sortedPenilai.length > 0 ? sortedPenilai.length : 1;
 
-      // ROW 1
-      const row1 = ['NAMA KANDIDAT & NIP', 'REKAPITULASI NILAI PESERTA JPT PRATAMA'];
-      for(let i = 1; i < maxPenilai; i++) row1.push(''); // Empty cells for visual merge
-      row1.push('Jumlah Nilai Rata-Rata / Persentase (%)', 'BOBOT 20%');
+      const row1 = ['NAMA KANDIDAT & NIP', 'REKAPITULASI NILAI PAPARAN & WAWANCARA JPT PRATAMA'];
+      for (let i = 1; i < maxPenilai; i++) row1.push('');
+      row1.push('Jumlah Nilai Rata-Rata / Persentase (%)', 'BOBOT 30%');
       rows.push(row1);
 
-      // ROW 2
       const row2 = [''];
       if (sortedPenilai.length === 0) {
         row2.push('PENILAI');
       } else {
         sortedPenilai.forEach(p => row2.push(p.namaPenilai));
       }
-      row2.push('', ''); // Empty for merged last two columns
+      row2.push('', '');
       rows.push(row2);
 
-      // DATA ROWS
       g_kandidat.forEach(k => {
         const penilaians = g_penilaian.filter(p => p.kandidatId === k.id);
         const dataRow = [`${k.nama}\n${k.nip || '-'}`];
-        
+
         let sumJumlah = 0;
-        let sum20 = 0;
+        let sum30 = 0;
         let evaluatedCount = 0;
 
         if (sortedPenilai.length === 0) {
           dataRow.push('-');
         } else {
           sortedPenilai.forEach(penilai => {
-            // Cari apakah penilai ini sudah mensubmit nilai untuk kandidat k.id
             const p = penilaians.find(x => x.token === penilai.token);
             if (p) {
               dataRow.push(p.jumlah);
               sumJumlah += (p.jumlah || 0);
-              sum20 += (p.nilai20persen || 0);
+              sum30 += (p.nilai30persen || 0);
               evaluatedCount++;
             } else {
               dataRow.push('-');
@@ -357,9 +565,8 @@
           const avgJumlah = sumJumlah / evaluatedCount;
           const avgPersen = ((avgJumlah / 40) * 100).toFixed(2);
           const rataJumlahPersen = `${avgJumlah.toFixed(2)} / ${avgPersen}%`;
-          const rata20 = (sum20 / evaluatedCount).toFixed(2);
-          
-          dataRow.push(rataJumlahPersen, rata20);
+          const rata30 = (sum30 / evaluatedCount).toFixed(2);
+          dataRow.push(rataJumlahPersen, rata30);
         } else {
           dataRow.push('-', '-');
         }
@@ -372,7 +579,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `rekap-penilaian-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `rekap-paparan-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     });

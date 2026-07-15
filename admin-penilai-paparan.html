@@ -3,11 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kelola Penilai - JPT Pratama</title>
+  <title>Kelola Penilai Paparan - JPT Pratama</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <style>
     .hidden { display: none !important; }
+
+    .paparan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(139,92,246,0.15);
+      color: #a78bfa;
+      border: 1px solid rgba(139,92,246,0.2);
+    }
   </style>
 </head>
 <body>
@@ -16,14 +29,14 @@
   <nav class="navbar">
     <a href="admin-dashboard.html" class="navbar-brand">
       <span class="brand-icon">📋</span>
-      <span>Penilaian Makalah</span>
+      <span>JPT Pratama</span>
     </a>
     <ul class="navbar-nav">
       <li><a href="admin-dashboard.html" class="nav-link">📊 Makalah</a></li>
       <li><a href="admin-paparan.html" class="nav-link">🎤 Paparan</a></li>
       <li><a href="admin-kandidat.html" class="nav-link">👤 Kandidat</a></li>
-      <li><a href="admin-penilai.html" class="nav-link active">🗝️ Penilai Makalah</a></li>
-      <li><a href="admin-penilai-paparan.html" class="nav-link">🗝️ Penilai Paparan</a></li>
+      <li><a href="admin-penilai.html" class="nav-link">🗝️ Penilai Makalah</a></li>
+      <li><a href="admin-penilai-paparan.html" class="nav-link active">🗝️ Penilai Paparan</a></li>
       <li><button class="btn btn-secondary btn-sm" id="btnLogout">Keluar</button></li>
     </ul>
   </nav>
@@ -31,38 +44,42 @@
   <div class="page-wrapper">
     <div class="container">
       <div class="page-header">
-        <h1>Kelola Token Penilai</h1>
-        <p>Generate token khusus (secure link) untuk dikirim ke tim penilai/asesor</p>
+        <h1>🗝️ Kelola Token Penilai Paparan</h1>
+        <p>Generate token khusus (secure link) untuk dikirim ke tim penilai paparan &amp; wawancara</p>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <span class="paparan-badge">🎤 Penilaian Paparan &amp; Wawancara</span>
       </div>
 
       <div class="card mb-6">
-        <h2 style="font-size: 1.1rem; margin-bottom: 1rem;">Generate Link Penilai Baru</h2>
-        
+        <h2 style="font-size: 1.1rem; margin-bottom: 1rem;">Generate Link Penilai Paparan Baru</h2>
+
         <form id="penilaiForm">
           <div class="form-group">
             <label class="form-label" for="namaPenilai">Nama Penilai / Tim Asesor *</label>
             <input type="text" id="namaPenilai" class="form-input" required placeholder="Contoh: Prof. Dr. Budi Santoso (Asesor 1)">
           </div>
-          
+
           <div class="form-group" style="margin-top: 1rem;">
             <label class="form-label" style="margin-bottom: 0.5rem; display: block;">Tugaskan Kandidat untuk Dinilai *</label>
-            <div class="form-hint mb-2">Pilih kandidat mana saja yang harus dinilai oleh penilai ini.</div>
-            
+            <div class="form-hint mb-2">Pilih kandidat mana saja yang harus dinilai oleh penilai paparan ini.</div>
+
             <div id="kandidatCheckboxes" class="checkbox-grid">
               <div class="p-2 text-muted text-sm">Memuat kandidat...</div>
             </div>
             <div id="kandidatError" class="form-error mt-1 hidden">Pilih minimal 1 kandidat</div>
           </div>
-          
+
           <div class="flex items-center justify-between mt-4">
-            <button type="submit" id="btnGenerate" class="btn btn-primary" disabled>
-              ✨ Generate Token Link
+            <button type="submit" id="btnGenerate" class="btn btn-primary" disabled style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); border: none;">
+              ✨ Generate Token Link Paparan
             </button>
             <button type="button" id="btnSelectAll" class="btn btn-secondary btn-sm" disabled>
               ✓ Pilih Semua Kandidat
             </button>
           </div>
-          
+
           <div id="formAlert" class="alert hidden mt-4"></div>
         </form>
       </div>
@@ -106,13 +123,12 @@
     const btnGenerate = document.getElementById('btnGenerate');
     const btnSelectAll = document.getElementById('btnSelectAll');
     const formAlert = document.getElementById('formAlert');
-    
+
     let g_kandidat = [];
     let g_penilai = [];
 
-    // Helper untuk generate string acak
     function generateRandomString(length) {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Tanpa 0, O, 1, I, l
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       let result = '';
       for (let i = 0; i < length; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -124,12 +140,12 @@
       try {
         const [kSnap, pSnap] = await Promise.all([
           getDocs(query(collection(db, 'kandidat'), orderBy('nama'))),
-          getDocs(query(collection(db, 'penilai'), orderBy('createdAt', 'desc')))
+          getDocs(query(collection(db, 'penilaiPaparan'), orderBy('createdAt', 'desc')))
         ]);
-        
+
         g_kandidat = kSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         g_penilai = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         renderKandidatCheckboxes();
         renderTable();
       } catch (err) {
@@ -146,14 +162,14 @@
         btnSelectAll.disabled = true;
         return;
       }
-      
+
       container.innerHTML = g_kandidat.map(k => `
         <div class="checkbox-item">
           <input type="checkbox" id="chk-${k.id}" value="${k.id}" class="kandidat-chk">
           <label for="chk-${k.id}">${k.nama}</label>
         </div>
       `).join('');
-      
+
       btnGenerate.disabled = false;
       btnSelectAll.disabled = false;
     }
@@ -167,38 +183,39 @@
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const chks = document.querySelectorAll('.kandidat-chk:checked');
       const assignedIds = Array.from(chks).map(c => c.value);
-      
+
       if (assignedIds.length === 0) {
         document.getElementById('kandidatError').classList.remove('hidden');
         return;
       }
       document.getElementById('kandidatError').classList.add('hidden');
-      
+
       const namaPenilai = document.getElementById('namaPenilai').value.trim();
-      
+
       btnGenerate.disabled = true;
       btnGenerate.innerHTML = '<div class="spinner spinner-sm"></div> Generating...';
-      
+
       try {
-        const token = generateRandomString(7);
-        await setDoc(doc(db, 'penilai', token), {
+        // Token dengan prefix P untuk membedakan dari token makalah
+        const token = 'P' + generateRandomString(7);
+        await setDoc(doc(db, 'penilaiPaparan', token), {
           namaPenilai,
           assignedKandidat: assignedIds,
           sudahMenilai: {},
           createdAt: serverTimestamp()
         });
-        
-        const link = `${getBaseUrl()}/nilai.html?token=${token}`;
-        
+
+        const link = `${getBaseUrl()}/nilai-paparan.html?token=${token}`;
+
         formAlert.className = `alert alert-success mt-4`;
         formAlert.innerHTML = `
           <span class="alert-icon">🎉</span>
           <div style="width: 100%;">
             <strong>Berhasil dibuat!</strong>
-            <p style="margin: 0.5rem 0;">Kirimkan link ini ke penilai:</p>
+            <p style="margin: 0.5rem 0;">Kirimkan link ini ke penilai paparan:</p>
             <div style="display: flex; gap: 0.5rem; width: 100%;">
               <input type="text" class="form-input" style="flex: 1;" value="${link}" readonly id="generatedLink">
               <button type="button" class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('generatedLink').value); alert('Tersalin!')">📋 Copy</button>
@@ -206,10 +223,10 @@
           </div>
         `;
         formAlert.classList.remove('hidden');
-        
+
         form.reset();
-        loadData(); // reload table
-        
+        loadData();
+
       } catch (err) {
         console.error(err);
         formAlert.className = `alert alert-error mt-4`;
@@ -217,12 +234,12 @@
         formAlert.classList.remove('hidden');
       } finally {
         btnGenerate.disabled = false;
-        btnGenerate.innerHTML = '✨ Generate Token Link';
+        btnGenerate.innerHTML = '✨ Generate Token Link Paparan';
       }
     });
 
     window.copyToClipboard = function(token) {
-      const link = `${getBaseUrl()}/nilai.html?token=${token}`;
+      const link = `${getBaseUrl()}/nilai-paparan.html?token=${token}`;
       navigator.clipboard.writeText(link).then(() => {
         alert('Link berhasil disalin!');
       }).catch(err => {
@@ -231,12 +248,12 @@
     };
 
     window.deletePenilai = async function(token, btn) {
-      if(!confirm(`Hapus akses penilai ini? Token ${token} tidak akan bisa digunakan lagi. (Penilaian yang sudah disubmit tidak akan terhapus)`)) return;
-      
+      if (!confirm(`Hapus akses penilai paparan ini? Token ${token} tidak akan bisa digunakan lagi. (Penilaian yang sudah disubmit tidak akan terhapus)`)) return;
+
       btn.disabled = true;
       btn.textContent = '...';
       try {
-        await deleteDoc(doc(db, 'penilai', token));
+        await deleteDoc(doc(db, 'penilaiPaparan', token));
         loadData();
       } catch (err) {
         console.error(err);
@@ -249,17 +266,17 @@
     function renderTable() {
       const tbody = document.querySelector('#dataTable tbody');
       tbody.innerHTML = '';
-      
+
       if (g_penilai.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">Belum ada token penilai yang di-generate</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">Belum ada token penilai paparan yang di-generate</td></tr>';
         return;
       }
-      
+
       g_penilai.forEach((p, i) => {
         const assignedCount = p.assignedKandidat?.length || 0;
         const selesaiCount = Object.values(p.sudahMenilai || {}).filter(Boolean).length;
         const isSelesaiAll = selesaiCount === assignedCount && assignedCount > 0;
-        
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="color: var(--text-muted)">${i + 1}</td>
@@ -267,21 +284,21 @@
           <td>
             <div class="token-display" style="display: inline-flex; margin-bottom: 0.25rem;">${p.id}</div>
             <div>
-              ${isSelesaiAll 
-                ? '<span class="badge badge-success">✅ Selesai Semua</span>' 
+              ${isSelesaiAll
+                ? '<span class="badge badge-success">✅ Selesai Semua</span>'
                 : '<span class="badge badge-warning">⏳ Sedang Proses</span>'
               }
             </div>
           </td>
           <td>
             <div style="font-size: 1.1rem; font-weight: 700;">
-              <span class="${isSelesaiAll ? 'text-success' : 'text-primary-color'}">${selesaiCount}</span>
+              <span class="${isSelesaiAll ? 'text-success' : ''}" style="${!isSelesaiAll ? 'color:#a78bfa;' : ''}">${selesaiCount}</span>
               <span class="text-muted">/</span>
               <span class="text-secondary">${assignedCount}</span>
             </div>
           </td>
           <td style="text-align: right; white-space: nowrap;">
-            <button class="btn btn-primary btn-sm" onclick="copyToClipboard('${p.id}')" title="Copy Link">📋 Copy Link</button>
+            <button class="btn btn-sm" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;" onclick="copyToClipboard('${p.id}')" title="Copy Link">📋 Copy Link</button>
             <button class="btn btn-danger btn-sm" onclick="deletePenilai('${p.id}', this)" title="Cabut Akses Token">🗑️ Hapus</button>
           </td>
         `;
