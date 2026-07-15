@@ -77,9 +77,9 @@ export async function generateWordDoc(params) {
     return {
       no: num,
       label: label,
-      val5: val === 5 ? 'V' : '',
-      val4: val === 4 ? 'V' : '',
-      val2: val === 2 ? 'V' : ''
+      val5: val === 5 ? '✓' : '',
+      val4: val === 4 ? '✓' : '',
+      val2: val === 2 ? '✓' : ''
     };
   });
 
