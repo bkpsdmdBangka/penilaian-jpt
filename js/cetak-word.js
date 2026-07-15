@@ -1,21 +1,15 @@
 /**
- * js/cetak-word.js  (v2 — menggunakan docxtemplater untuk keandalan)
+ * js/cetak-word.js  (v3 — Perbaikan XML regex & fallback generation)
  *
  * Alur kerja:
  * 1. Load PizZip + docxtemplater dari CDN
- * 2. docxtemplater mengganti placeholder TEKS secara aman (menangani fragmentasi XML)
- * 3. Untuk {TABLE_PENILAIAN}: diganti sentinal → cari sentinal di XML → inject <w:tbl>
- * 4. Output uint8array → Blob → download
- *
- * Placeholder yang dikenali di template.docx:
- *   {JUDUL_PENILAIAN}      {NAMA_PESERTA}   {NIP_PESERTA}
- *   {UNIT_KERJA_PESERTA}   {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
+ * 2. docxtemplater mengganti placeholder TEKS secara aman
+ * 3. Untuk {TABLE_PENILAIAN}: docxtemplater menulis sentinal,
+ *    lalu kita replace HANYA tag <w:p> pembungkus sentinal dengan <w:tbl>
+ * 4. Output blob -> download
  */
 
 const TEMPLATE_URL = './template_dok_penilai/template.docx';
-
-// Sentinel unik yang akan dipakai docxtemplater untuk TABLE_PENILAIAN,
-// lalu kita ganti manual di XML setelah render
 const TABLE_SENTINEL = 'XXTABLESENTINELXX';
 
 const INDIKATOR_LABELS = [
@@ -71,35 +65,20 @@ function xmlEsc(str) {
 }
 
 // ── OOXML table builder ──────────────────────────────────────────────────────
-/**
- * Menghasilkan OOXML <w:tbl> yang sesuai dengan struktur
- * template_dok_penilai/table_penilaian_*.html
- *
- * Header 2-baris:
- *   Baris 1: NO (rowspan2) | INDIKATOR PENILAIAN (rowspan2) | NILAI (colspan3)
- *   Baris 2: -            | -                              | SM(5) | M(4) | KM(2)
- *
- * Kolom (total ~9000 twip = A4 margin normal):
- *   NO:560 | INDIKATOR:4480 | 3×VAL:1320
- *
- * Baris-5 (Usul Kelayakan) height 1700twip = ~3cm sesuai HTML height:120px
- */
 function buildTableOoxml(indikatorData, jumlah) {
   const W_NO  = 560;
   const W_IND = 4480;
   const W_VAL = 1320;
 
-  // Borders setiap sel
   const BORDERS = `<w:tcBorders>
-    <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-    <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-    <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:top    w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+    <w:left   w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+    <w:right  w:val="single" w:sz="4" w:space="0" w:color="auto"/>
   </w:tcBorders>`;
 
   const GREY = `<w:shd w:val="clear" w:color="auto" w:fill="D3D3D3"/>`;
 
-  // ── Atom builders ──────────────────────────────────────────────────────────
   const tcPr = (w, extra = '') =>
     `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${BORDERS}${extra}</w:tcPr>`;
 
@@ -114,21 +93,20 @@ function buildTableOoxml(indikatorData, jumlah) {
 
   const checkRun = (val, target) =>
     val === target
-      ? `<w:rPr><w:b/></w:rPr><w:t>&#10003;</w:t>`
+      ? `<w:rPr><w:b/></w:rPr><w:t>V</w:t>`
       : `<w:t xml:space="preserve"> </w:t>`;
 
-  const emptyPara = () => `<w:p><w:pPr/></w:p>`;
+  const emptyPara = () => `<w:p/>`;
 
-  // ── Tabel properties ───────────────────────────────────────────────────────
   const tblPr = `<w:tblPr>
     <w:tblW w:w="5000" w:type="pct"/>
     <w:tblBorders>
-      <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-      <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-      <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
-      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:top    w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:left   w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:right  w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
     </w:tblBorders>
   </w:tblPr>`;
 
@@ -140,8 +118,6 @@ function buildTableOoxml(indikatorData, jumlah) {
     <w:gridCol w:w="${W_VAL}"/>
   </w:tblGrid>`;
 
-  // ── Header baris 1 ─────────────────────────────────────────────────────────
-  // NO + INDIKATOR dengan vMerge restart; NILAI dengan gridSpan=3
   const hRow1 = `<w:tr>
     <w:trPr><w:tblHeader/></w:trPr>
     <w:tc>${tcPr(W_NO, `<w:vMerge w:val="restart"/>${GREY}`)}${para(boldRun('NO'), true)}</w:tc>
@@ -149,8 +125,6 @@ function buildTableOoxml(indikatorData, jumlah) {
     <w:tc>${tcPr(W_VAL * 3, `<w:gridSpan w:val="3"/>${GREY}`)}${para(boldRun('NILAI'), true)}</w:tc>
   </w:tr>`;
 
-  // ── Header baris 2 ─────────────────────────────────────────────────────────
-  // NO + INDIKATOR: vMerge (continuation); 3 sub-header nilai
   const hRow2 = `<w:tr>
     <w:trPr><w:tblHeader/></w:trPr>
     <w:tc>${tcPr(W_NO, `<w:vMerge/>${GREY}`)}${emptyPara()}</w:tc>
@@ -160,8 +134,6 @@ function buildTableOoxml(indikatorData, jumlah) {
     <w:tc>${tcPr(W_VAL, GREY)}${para(boldRun('Kurang Memadai (2)'), true)}</w:tc>
   </w:tr>`;
 
-  // ── Baris data 1–8 ─────────────────────────────────────────────────────────
-  // Baris ke-5 (Usul Kelayakan Rekomendasi) memiliki tinggi ekstra: 1700 twip
   let dataRows = '';
   INDIKATOR_LABELS.forEach((label, idx) => {
     const num  = idx + 1;
@@ -180,8 +152,6 @@ function buildTableOoxml(indikatorData, jumlah) {
     </w:tr>`;
   });
 
-  // ── Baris JUMLAH ───────────────────────────────────────────────────────────
-  // Kolom 1+2 digabung untuk label JUMLAH; kolom 3+4+5 digabung untuk nilai
   const jumlahRow = `<w:tr>
     <w:tc>${tcPr(W_NO + W_IND, '<w:gridSpan w:val="2"/>')}${para(boldRun('JUMLAH'), true)}</w:tc>
     <w:tc>${tcPr(W_VAL * 3, '<w:gridSpan w:val="3"/>')}${para(boldRun(String(jumlah ?? 0)))}</w:tc>
@@ -191,43 +161,21 @@ function buildTableOoxml(indikatorData, jumlah) {
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
-/**
- * @param {Object} params
- * @param {string} params.judulPenilaian
- * @param {string} params.namaPeserta
- * @param {string} params.nipPeserta
- * @param {string} params.unitKerja
- * @param {Object} params.indikator        { i1..i8: nilai }
- * @param {number} params.jumlah
- * @param {string} params.namaPanitia
- * @param {string} [params.filename]
- */
 export async function generateWordDoc(params) {
   const { judulPenilaian, namaPeserta, nipPeserta, unitKerja,
           indikator, jumlah, namaPanitia, filename } = params;
 
-  // 1. Muat library
   const { PizZip, Docxtemplater } = await loadLibs();
 
-  // 2. Ambil template.docx
   const resp = await fetch(TEMPLATE_URL);
   if (!resp.ok) throw new Error(`Gagal memuat template.docx (HTTP ${resp.status})`);
   const buf = await resp.arrayBuffer();
 
-  // 3. Buka dengan PizZip
   const zip = new PizZip(buf);
 
-  // 4. Gunakan docxtemplater untuk mengganti placeholder TEKS
-  //    (docxtemplater menangani fragmentasi XML secara internal)
-  //    TABLE_PENILAIAN → sentinal unik, akan diganti manual setelah render
   const doc = new Docxtemplater(zip, {
     paragraphLoop : true,
     linebreaks    : true,
-    // nullGetter memastikan placeholder tak dikenal tidak menyebabkan error
-    nullGetter    : (part) => {
-      if (!part.module && part.value === 'TABLE_PENILAIAN') return TABLE_SENTINEL;
-      return '';
-    },
   });
 
   doc.render({
@@ -236,40 +184,41 @@ export async function generateWordDoc(params) {
     NIP_PESERTA        : nipPeserta     || '-',
     UNIT_KERJA_PESERTA : unitKerja      || '-',
     NAMA_PANITIA_PENILAI: namaPanitia,
-    TABLE_PENILAIAN    : TABLE_SENTINEL,  // docxtemplater tulis sentinal ke XML
+    TABLE_PENILAIAN    : TABLE_SENTINEL,
   });
 
-  // 5. Ambil ZIP hasil render dan inject tabel OOXML
   const outZip = doc.getZip();
   let xml = outZip.file('word/document.xml').asText();
 
-  // Cari paragraf yang mengandung sentinal lalu ganti seluruh <w:p> dengan <w:tbl>
   const tableOoxml = buildTableOoxml(indikator, jumlah);
-  const sentinelRe = new RegExp(
-    `<w:p\\b[^>]*>[\\s\\S]*?${TABLE_SENTINEL}[\\s\\S]*?<\\/w:p>`
-  );
 
-  if (sentinelRe.test(xml)) {
-    xml = xml.replace(sentinelRe, tableOoxml);
-  } else {
-    // Fallback: cari {TABLE_PENILAIAN} literal (jika docxtemplater tidak mengganti)
-    const literalRe = /<w:p\b[^>]*>[\s\S]*?\{TABLE_PENILAIAN\}[\s\S]*?<\/w:p>/;
-    xml = xml.replace(literalRe, tableOoxml);
+  // Ganti sentinal dengan tabel. 
+  // Gunakan indexOf untuk mencari posisi sentinel dengan aman,
+  // lalu cari tag <w:p> pembungkusnya untuk diganti seluruhnya.
+  const idx = xml.indexOf(TABLE_SENTINEL);
+  if (idx !== -1) {
+    const pStart1 = xml.lastIndexOf('<w:p>', idx);
+    const pStart2 = xml.lastIndexOf('<w:p ', idx);
+    const pStart = Math.max(pStart1, pStart2);
+    
+    const pEnd = xml.indexOf('</w:p>', idx);
+    
+    if (pStart !== -1 && pEnd !== -1) {
+      xml = xml.substring(0, pStart) + tableOoxml + xml.substring(pEnd + 6);
+    } else {
+      // Fallback jika tidak dibungkus w:p (sangat jarang di Word)
+      xml = xml.replace(TABLE_SENTINEL, tableOoxml);
+    }
   }
 
   outZip.file('word/document.xml', xml);
 
-  // 6. Generate sebagai Uint8Array → Blob (lebih reliable dari type:'blob')
-  const uint8 = outZip.generate({
-    type        : 'uint8array',
-    compression : 'DEFLATE',
+  // Generate dengan format blob standar docxtemplater
+  const blob = outZip.generate({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  const blob = new Blob([uint8], {
-    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  });
-
-  // 7. Download
   const safeFile = (filename || `penilaian-${namaPeserta}`)
     .replace(/[/\\?%*:|"<>]/g, '-').trim();
   const url = URL.createObjectURL(blob);
