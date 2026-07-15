@@ -92,7 +92,7 @@ function buildTableOoxml(indikatorData, jumlah) {
 
   const checkRun = (val, target) =>
     val === target
-      ? `<w:rPr><w:b/></w:rPr><w:t>&#x2713;</w:t>`
+      ? `<w:rPr><w:b/></w:rPr><w:t>V</w:t>`
       : `<w:t xml:space="preserve"> </w:t>`;
 
   const emptyPara = () => `<w:p/>`;
