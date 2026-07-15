@@ -226,14 +226,13 @@
     import { collection, getDocs, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
     const INDIKATOR = [
-      'Proporsi Halaman',
-      'Penggunaan Referensi dan Peraturan Perundang-undangan',
-      'Cakupan Strategi / Rencana Aksi',
-      'Proporsi Data yang digunakan',
-      'Usul Kelayakan Rekomendasi',
-      'Penyelesaian Makalah',
-      'Kelayakan Teknis Tulisan',
-      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+      { key: 'n1', label: 'Sikap Spiritual dalam Presentasi', desc: 'Berdoa sebelum dan sesudah presentasi, mengucapkan salam, serta mengucapkan rasa syukur kepada Tuhan.' },
+      { key: 'n2', label: 'Kualitas dalam Penetapan Isu', desc: 'Isu yang diangkat aktual dan berdampak bagi instansi maupun individu.' },
+      { key: 'n3', label: 'Penguasaan Materi', desc: '' },
+      { key: 'n4', label: 'Penyampaian', desc: 'Berbicara jelas, lugas, menarik, kontak mata, menggunakan pointer dengan baik.' },
+      { key: 'n5', label: 'Diskusi', desc: 'Kemampuan menjelaskan pemecahan masalah dan merespon pertanyaan.' },
+      { key: 'n6', label: 'Penampilan', desc: 'Menerapkan budaya 5S (Sapa, Salam, Senyum, Sopan, Santun).' },
+      { key: 'n7', label: 'Slides', desc: 'Ringkas, menarik, mudah dibaca, dan memiliki kontras yang baik.' }
     ];
 
     const JENIS_PENILAIAN = [
