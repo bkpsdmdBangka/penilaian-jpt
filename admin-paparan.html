@@ -23,63 +23,71 @@
       border: 1px solid rgba(139,92,246,0.2);
     }
 
-    /* Print area */
+    /* ── PRINT STYLES — menggunakan struktur table_penilaian_paparan.html ── */
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
       #printArea {
-        position: absolute;
-        left: 0; top: 0;
-        width: 100%;
+        position: fixed;
+        inset: 0;
         background: #fff;
         color: #000;
-        font-family: 'Times New Roman', serif;
+        font-family: 'Times New Roman', Times, serif;
         font-size: 12pt;
         padding: 20mm 25mm;
+        z-index: 99999;
       }
-      .print-title {
-        font-size: 14pt;
+      .print-judul {
+        font-size: 13pt;
         font-weight: bold;
         text-align: center;
         text-transform: uppercase;
-        margin-bottom: 16px;
-        line-height: 1.4;
+        margin-bottom: 18px;
+        line-height: 1.5;
+        text-decoration: underline;
       }
-      .print-info-table {
+      .print-info-tbl {
         width: 100%;
-        margin-bottom: 16px;
+        margin-bottom: 18px;
         border-collapse: collapse;
       }
-      .print-info-table td {
-        padding: 3px 0;
+      .print-info-tbl td {
+        padding: 2px 0;
         font-size: 12pt;
         vertical-align: top;
       }
-      .print-info-table td:first-child { width: 180px; }
-      .print-info-table td:nth-child(2) { width: 16px; text-align: center; }
-      .print-assessment-table {
+      .print-info-tbl td:first-child { width: 180px; }
+      .print-info-tbl td.colon { width: 14px; text-align: center; }
+      /* Tabel nilai — struktur persis table_penilaian_paparan.html */
+      .print-nilai-tbl {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 8px;
-        margin-bottom: 20px;
+        text-align: center;
+        margin-bottom: 24px;
       }
-      .print-assessment-table th,
-      .print-assessment-table td {
+      .print-nilai-tbl th,
+      .print-nilai-tbl td {
         border: 1px solid #000;
         padding: 6px 8px;
         font-size: 11pt;
       }
-      .print-assessment-table th {
+      .print-nilai-tbl th {
         background: #ddd;
         font-weight: bold;
-        text-align: center;
       }
-      .print-assessment-table td:first-child { text-align: center; width: 40px; }
-      .print-assessment-table td.check-cell { text-align: center; font-size: 14pt; font-weight: bold; }
-      .print-sign-area {
-        margin-top: 30px;
+      .print-nilai-tbl td.no  { width: 40px; text-align: center; }
+      .print-nilai-tbl td.ind { text-align: left; }
+      /* Baris no.5 memiliki tinggi 120px seperti di template HTML */
+      .print-nilai-tbl td.ind-tall { text-align: left; height: 120px; vertical-align: middle; }
+      .print-nilai-tbl td.chk { text-align: center; width: 110px; font-size: 14pt; }
+      .print-nilai-tbl td.jml { font-weight: bold; }
+      .print-ttd {
+        margin-top: 32px;
         text-align: right;
+        font-size: 12pt;
+        line-height: 1.8;
       }
+      .print-ttd .spasi { height: 64px; display: block; }
     }
   </style>
 </head>
@@ -416,14 +424,15 @@
       document.getElementById('detailModal').classList.remove('hidden');
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // CETAK DARI ADMIN
-    // ─────────────────────────────────────────────────────────────────
-    window.cetakFromAdmin = async function(kandidatId, kandidatNama, kandidatNip, kandidatUnit, penilaiToken, namaPenilai, jenisKey) {
+    // ─── CETAK DARI ADMIN ───────────────────────────────────────────
+    // Menggunakan struktur tabel dari template_dok_penilai/table_penilaian_paparan.html
+    // Variabel template: {JUDUL_PENILAIAN} {NAMA_PESERTA} {NIP_PESERTA}
+    //                   {UNIT_KERJA_PESERTA} {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
+    window.cetakFromAdmin = function(kandidatId, kandidatNama, kandidatNip, kandidatUnit, penilaiToken, namaPenilai, jenisKey) {
       const jenis = JENIS_PENILAIAN.find(j => j.key === jenisKey);
       if (!jenis) return;
 
-      // Cari data penilaian
+      // Cari data penilaian dari data yang sudah di-load
       const penilaianItem = g_penilaian.find(p => p.kandidatId === kandidatId && p.token === penilaiToken);
       if (!penilaianItem) {
         alert('Data penilaian tidak ditemukan.');
@@ -431,49 +440,45 @@
       }
 
       const indikator = penilaianItem.indikator || {};
-      const jumlah = penilaianItem.jumlah || 0;
+      const jumlah    = penilaianItem.jumlah    || 0;
 
-      let tableRows = '';
+      // Bangun baris tabel persis seperti table_penilaian_paparan.html
+      // Baris ke-5 (Usul Kelayakan Rekomendasi) memiliki height:120px
+      let rows = '';
       INDIKATOR.forEach((label, idx) => {
-        const num = idx + 1;
-        const val = indikator[`i${num}`] || 0;
-        const checked5 = val === 5 ? '✓' : '';
-        const checked4 = val === 4 ? '✓' : '';
-        const checked2 = val === 2 ? '✓' : '';
-        tableRows += `
+        const num  = idx + 1;
+        const val  = parseInt(indikator[`i${num}`] || 0);
+        const is5  = val === 5;
+        const is4  = val === 4;
+        const is2  = val === 2;
+        // Kelas td untuk kolom indikator: baris-5 = ind-tall (120px), lainnya = ind
+        const indClass = num === 5 ? 'ind-tall' : 'ind';
+        rows += `
           <tr>
-            <td>${num}</td>
-            <td style="text-align:left;">${label}</td>
-            <td class="check-cell">${checked5}</td>
-            <td class="check-cell">${checked4}</td>
-            <td class="check-cell">${checked2}</td>
-          </tr>
-        `;
+            <td class="no">${num}</td>
+            <td class="${indClass}">${label}</td>
+            <td class="chk">${is5 ? '&#10003;' : ''}</td>
+            <td class="chk">${is4 ? '&#10003;' : ''}</td>
+            <td class="chk">${is2 ? '&#10003;' : ''}</td>
+          </tr>`;
       });
 
       const today = new Date();
-      const tglStr = `${today.getDate()} ${['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][today.getMonth()]} ${today.getFullYear()}`;
+      const bulan = ['Januari','Februari','Maret','April','Mei','Juni',
+                     'Juli','Agustus','September','Oktober','November','Desember'];
+      const tgl   = `${today.getDate()} ${bulan[today.getMonth()]} ${today.getFullYear()}`;
 
+      // Susun HTML cetak menggunakan 6 variabel template
       const printContent = `
-        <div class="print-title">${jenis.label}</div>
-        <table class="print-info-table">
-          <tr>
-            <td>Nama Peserta</td>
-            <td>:</td>
-            <td><strong>${kandidatNama}</strong></td>
-          </tr>
-          <tr>
-            <td>NIP</td>
-            <td>:</td>
-            <td>${kandidatNip || '-'}</td>
-          </tr>
-          <tr>
-            <td>Unit Kerja</td>
-            <td>:</td>
-            <td>${kandidatUnit || '-'}</td>
-          </tr>
+        <div class="print-judul">${jenis.label}</div>
+
+        <table class="print-info-tbl">
+          <tr><td>Nama Peserta</td><td class="colon">:</td><td><strong>${kandidatNama}</strong></td></tr>
+          <tr><td>NIP</td>         <td class="colon">:</td><td>${kandidatNip  || '-'}</td></tr>
+          <tr><td>Unit Kerja</td>  <td class="colon">:</td><td>${kandidatUnit || '-'}</td></tr>
         </table>
-        <table class="print-assessment-table">
+
+        <table class="print-nilai-tbl" border="1" cellspacing="0" cellpadding="8">
           <thead>
             <tr>
               <th rowspan="2" style="width:40px;">NO</th>
@@ -487,31 +492,27 @@
             </tr>
           </thead>
           <tbody>
-            ${tableRows}
+            ${rows}
             <tr>
-              <td colspan="2" style="font-weight:bold; text-align:center;">JUMLAH</td>
-              <td colspan="3" style="font-weight:bold;">${jumlah}</td>
+              <td colspan="2" class="jml" style="text-align:center;"><strong>JUMLAH</strong></td>
+              <td colspan="3" class="jml">&nbsp;&nbsp;${jumlah}</td>
             </tr>
           </tbody>
         </table>
-        <div class="print-sign-area">
-          <p>Bangka, ${tglStr}</p>
-          <p>Panitia Penilai,</p>
-          <br><br><br>
-          <p><strong>${namaPenilai}</strong></p>
+
+        <div class="print-ttd">
+          <span>Bangka, ${tgl}</span><br>
+          <span>Panitia Penilai,</span>
+          <span class="spasi"></span>
+          <strong>${namaPenilai}</strong>
         </div>
       `;
 
       const printArea = document.getElementById('printArea');
       printArea.innerHTML = printContent;
       printArea.style.display = 'block';
-
       window.print();
-
-      setTimeout(() => {
-        printArea.style.display = 'none';
-        printArea.innerHTML = '';
-      }, 1000);
+      setTimeout(() => { printArea.style.display = 'none'; printArea.innerHTML = ''; }, 800);
     };
 
     // ─────────────────────────────────────────────────────────────────

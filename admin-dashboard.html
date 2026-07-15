@@ -8,9 +8,77 @@
   <link rel="stylesheet" href="css/style.css">
   <style>
     .hidden { display: none !important; }
+
+    /* ── PRINT STYLES ─────────────────────────────── */
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea {
+        position: fixed;
+        inset: 0;
+        background: #fff;
+        color: #000;
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 12pt;
+        padding: 20mm 25mm;
+        z-index: 99999;
+      }
+      .print-judul {
+        font-size: 13pt;
+        font-weight: bold;
+        text-align: center;
+        text-transform: uppercase;
+        margin-bottom: 18px;
+        line-height: 1.5;
+        text-decoration: underline;
+      }
+      .print-info-tbl {
+        width: 100%;
+        margin-bottom: 18px;
+        border-collapse: collapse;
+      }
+      .print-info-tbl td {
+        padding: 2px 0;
+        font-size: 12pt;
+        vertical-align: top;
+      }
+      .print-info-tbl td:first-child { width: 180px; }
+      .print-info-tbl td.colon { width: 14px; text-align: center; }
+      /* Tabel penilaian — ikut struktur table_penilaian_makalah.html */
+      .print-nilai-tbl {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 24px;
+        text-align: center;
+      }
+      .print-nilai-tbl th,
+      .print-nilai-tbl td {
+        border: 1px solid #000;
+        padding: 5px 8px;
+        font-size: 11pt;
+      }
+      .print-nilai-tbl th {
+        background: #e0e0e0;
+        font-weight: bold;
+      }
+      .print-nilai-tbl td.no  { width: 40px; text-align: center; }
+      .print-nilai-tbl td.ind { text-align: left; }
+      .print-nilai-tbl td.chk { text-align: center; width: 110px; font-size: 14pt; }
+      .print-nilai-tbl td.jml { text-align: left; font-weight: bold; }
+      .print-ttd {
+        margin-top: 32px;
+        text-align: right;
+        font-size: 12pt;
+        line-height: 1.8;
+      }
+      .print-ttd .spasi { height: 60px; display: block; }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Area cetak tersembunyi -->
+  <div id="printArea" style="display:none;"></div>
 
   <!-- NAVBAR ADMIN -->
   <nav class="navbar">
@@ -121,6 +189,7 @@
               <th>Penilai</th>
               <th>Total Skor</th>
               <th>Nilai (20%)</th>
+              <th>Cetak Lembar</th>
             </tr>
           </thead>
           <tbody id="modalTbody"></tbody>
@@ -290,11 +359,20 @@
         document.getElementById('modalTableContainer').classList.remove('hidden');
         
         penilaians.forEach(p => {
+          const namaPenilai = g_penilaiMap[p.token] || p.token;
           const tr = document.createElement('tr');
+          const safeUnit    = (kandidat.unitKerja||'').replace(/'/g,"\\'");
+          const safePenilai = namaPenilai.replace(/'/g,"\\'");
           tr.innerHTML = `
-            <td>${g_penilaiMap[p.token] || p.token}</td>
+            <td>${namaPenilai}</td>
             <td><strong>${p.jumlah}</strong>/40</td>
             <td><strong class="text-primary-color">${p.nilai20persen?.toFixed(2)}</strong></td>
+            <td>
+              <button class="btn btn-primary btn-sm"
+                onclick="cetakLembarMakalah('${kandidat.id}','${kandidat.nip||''}','${safeUnit}','${safePenilai}','${p.token}')">
+                🖨️ Cetak
+              </button>
+            </td>
           `;
           tbody.appendChild(tr);
         });
@@ -302,6 +380,110 @@
 
       document.getElementById('detailModal').classList.remove('hidden');
     }
+
+    // ─── FUNGSI CETAK LEMBAR PENILAIAN MAKALAH ────────────────────
+    // Menggunakan struktur tabel dari table_penilaian_makalah.html
+    // Template: {JUDUL_PENILAIAN} {NAMA_PESERTA} {NIP_PESERTA} {UNIT_KERJA_PESERTA}
+    //           {TABLE_PENILAIAN} {NAMA_PANITIA_PENILAI}
+    const INDIKATOR_MAKALAH = [
+      'Proporsi Halaman',
+      'Penggunaan Referensi dan Peraturan Perundang-undangan',
+      'Cakupan Strategi / Rencana Aksi',
+      'Proporsi Data yang digunakan',
+      'Usul Kelayakan Rekomendasi',
+      'Penyelesaian Makalah',
+      'Kelayakan Teknis Tulisan',
+      'Ketajaman Isi Makalah dan Kekuatan Argumentasi',
+    ];
+
+    window.cetakLembarMakalah = function(kandidatId, nipPeserta, unitKerja, namaPanitian, penilaiToken) {
+      // Cari kandidat berdasarkan ID
+      const kand = g_kandidat.find(k => k.id === kandidatId);
+      const namaPeserta = kand ? kand.nama : '-';
+
+      // Cari data penilaian berdasarkan kandidatId + token penilai
+      const p = g_penilaian.find(x => x.kandidatId === kandidatId && x.token === penilaiToken);
+
+      if (!p) {
+        alert('Data penilaian tidak ditemukan.');
+        return;
+      }
+
+      const indikator = p.indikator || {};
+      const jumlah    = p.jumlah   || 0;
+
+      // Bangun baris tabel — struktur persis table_penilaian_makalah.html
+      // Baris 5 (Usul Kelayakan Rekomendasi) memiliki tinggi ekstra
+      let rows = '';
+      INDIKATOR_MAKALAH.forEach((label, idx) => {
+        const num  = idx + 1;
+        const val  = parseInt(indikator[`i${num}`] || 0);
+        const is5  = val === 5;
+        const is4  = val === 4;
+        const is2  = val === 2;
+        // Baris 5 (Usul Kelayakan Rekomendasi) memiliki tinggi 120px seperti template
+
+        rows += `
+          <tr>
+            <td class="no">${num}</td>
+            <td class="ind${num===5?'-tall':''}">${label}</td>
+            <td class="chk">${is5 ? '&#10003;' : ''}</td>
+            <td class="chk">${is4 ? '&#10003;' : ''}</td>
+            <td class="chk">${is2 ? '&#10003;' : ''}</td>
+          </tr>`;
+      });
+
+      const today  = new Date();
+      const bulan  = ['Januari','Februari','Maret','April','Mei','Juni',
+                      'Juli','Agustus','September','Oktober','November','Desember'];
+      const tgl    = `${today.getDate()} ${bulan[today.getMonth()]} ${today.getFullYear()}`;
+
+      // Susun konten cetak menggunakan variabel template
+      const html = `
+        <div class="print-judul">PENILAIAN PENULISAN MAKALAH</div>
+
+        <table class="print-info-tbl">
+          <tr><td>Nama Peserta</td><td class="colon">:</td><td><strong>${namaPeserta}</strong></td></tr>
+          <tr><td>NIP</td>         <td class="colon">:</td><td>${nipPeserta || '-'}</td></tr>
+          <tr><td>Unit Kerja</td>  <td class="colon">:</td><td>${unitKerja  || '-'}</td></tr>
+        </table>
+
+        <table class="print-nilai-tbl" border="1" cellspacing="0" cellpadding="8">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:40px;">NO</th>
+              <th rowspan="2">INDIKATOR PENILAIAN</th>
+              <th colspan="3">NILAI</th>
+            </tr>
+            <tr>
+              <th style="width:110px;">Sangat Memadai (5)</th>
+              <th style="width:110px;">Memadai (4)</th>
+              <th style="width:110px;">Kurang Memadai (2)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr>
+              <td colspan="2" class="jml" style="text-align:center;"><strong>JUMLAH</strong></td>
+              <td colspan="3" class="jml">&nbsp;&nbsp;${jumlah}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-ttd">
+          <span>Bangka, ${tgl}</span><br>
+          <span>Panitia Penilai,</span>
+          <span class="spasi"></span>
+          <strong>${namaPanitian}</strong>
+        </div>
+      `;
+
+      const area = document.getElementById('printArea');
+      area.innerHTML = html;
+      area.style.display = 'block';
+      window.print();
+      setTimeout(() => { area.style.display = 'none'; area.innerHTML = ''; }, 800);
+    };
 
     document.getElementById('btnExport').addEventListener('click', () => {
       const rows = [];
