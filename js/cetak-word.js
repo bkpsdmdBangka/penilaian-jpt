@@ -1,16 +1,15 @@
 /**
- * js/cetak-word.js  (v3 — Perbaikan XML regex & fallback generation)
+ * js/cetak-word.js
  *
  * Alur kerja:
  * 1. Load PizZip + docxtemplater dari CDN
- * 2. docxtemplater mengganti placeholder TEKS secara aman
- * 3. Untuk {TABLE_PENILAIAN}: docxtemplater menulis sentinal,
- *    lalu kita replace HANYA tag <w:p> pembungkus sentinal dengan <w:tbl>
+ * 2. Modifikasi template untuk mengubah {TABLE_PENILAIAN} menjadi {@TABLE_PENILAIAN}
+ *    (tag @ memberitahu docxtemplater untuk menyisipkan raw XML secara aman)
+ * 3. docxtemplater mengganti teks & menyisipkan tabel otomatis
  * 4. Output blob -> download
  */
 
 const TEMPLATE_URL = './template_dok_penilai/template.docx';
-const TABLE_SENTINEL = 'XXTABLESENTINELXX';
 
 const INDIKATOR_LABELS = [
   'Proporsi Halaman',
@@ -55,7 +54,6 @@ async function loadLibs() {
   return { PizZip, Docxtemplater };
 }
 
-// ── XML helper ───────────────────────────────────────────────────────────────
 function xmlEsc(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -70,11 +68,12 @@ function buildTableOoxml(indikatorData, jumlah) {
   const W_IND = 4480;
   const W_VAL = 1320;
 
+  // w:color="000000" lebih aman dan pasti didukung semua versi Word
   const BORDERS = `<w:tcBorders>
-    <w:top    w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:left   w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-    <w:right  w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+    <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
   </w:tcBorders>`;
 
   const GREY = `<w:shd w:val="clear" w:color="auto" w:fill="D3D3D3"/>`;
@@ -93,7 +92,7 @@ function buildTableOoxml(indikatorData, jumlah) {
 
   const checkRun = (val, target) =>
     val === target
-      ? `<w:rPr><w:b/></w:rPr><w:t>V</w:t>`
+      ? `<w:rPr><w:b/></w:rPr><w:t>&#x2713;</w:t>`
       : `<w:t xml:space="preserve"> </w:t>`;
 
   const emptyPara = () => `<w:p/>`;
@@ -101,12 +100,12 @@ function buildTableOoxml(indikatorData, jumlah) {
   const tblPr = `<w:tblPr>
     <w:tblW w:w="5000" w:type="pct"/>
     <w:tblBorders>
-      <w:top    w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      <w:left   w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      <w:right  w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+      <w:top    w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:left   w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:right  w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
     </w:tblBorders>
   </w:tblPr>`;
 
@@ -173,47 +172,30 @@ export async function generateWordDoc(params) {
 
   const zip = new PizZip(buf);
 
+  // Perbaikan Penting: 
+  // docxtemplater butuh prefix '@' untuk merender raw XML secara aman (seperti tabel).
+  // Karena template dari user menggunakan {TABLE_PENILAIAN}, kita ubah XML-nya 
+  // sebelum docxtemplater memprosesnya menjadi {@TABLE_PENILAIAN}.
+  let docXml = zip.file('word/document.xml').asText();
+  docXml = docXml.replace(/\{TABLE_PENILAIAN\}/g, '{@TABLE_PENILAIAN}');
+  zip.file('word/document.xml', docXml);
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop : true,
     linebreaks    : true,
   });
 
+  // Render semua variabel, TABLE_PENILAIAN akan dirender sebagai raw XML
   doc.render({
     JUDUL_PENILAIAN    : judulPenilaian,
     NAMA_PESERTA       : namaPeserta,
     NIP_PESERTA        : nipPeserta     || '-',
     UNIT_KERJA_PESERTA : unitKerja      || '-',
     NAMA_PANITIA_PENILAI: namaPanitia,
-    TABLE_PENILAIAN    : TABLE_SENTINEL,
+    TABLE_PENILAIAN    : buildTableOoxml(indikator, jumlah),
   });
 
   const outZip = doc.getZip();
-  let xml = outZip.file('word/document.xml').asText();
-
-  const tableOoxml = buildTableOoxml(indikator, jumlah);
-
-  // Ganti sentinal dengan tabel. 
-  // Gunakan indexOf untuk mencari posisi sentinel dengan aman,
-  // lalu cari tag <w:p> pembungkusnya untuk diganti seluruhnya.
-  const idx = xml.indexOf(TABLE_SENTINEL);
-  if (idx !== -1) {
-    const pStart1 = xml.lastIndexOf('<w:p>', idx);
-    const pStart2 = xml.lastIndexOf('<w:p ', idx);
-    const pStart = Math.max(pStart1, pStart2);
-    
-    const pEnd = xml.indexOf('</w:p>', idx);
-    
-    if (pStart !== -1 && pEnd !== -1) {
-      xml = xml.substring(0, pStart) + tableOoxml + xml.substring(pEnd + 6);
-    } else {
-      // Fallback jika tidak dibungkus w:p (sangat jarang di Word)
-      xml = xml.replace(TABLE_SENTINEL, tableOoxml);
-    }
-  }
-
-  outZip.file('word/document.xml', xml);
-
-  // Generate dengan format blob standar docxtemplater
   const blob = outZip.generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
